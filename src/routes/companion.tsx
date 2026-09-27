@@ -1,0 +1,3 @@
+import { createFileRoute } from '@tanstack/react-router';
+import { Companion } from '@/components/pulseiq/Views';
+export const Route = createFileRoute('/companion')({ head: () => ({ meta: [{ title: 'AI Companion — PulseIQ' }, { name: 'description', content: 'A context-aware simulated health check-in when your personal pattern changes.' }, { property: 'og:title', content: 'AI Companion — PulseIQ' }, { property: 'og:description', content: 'A thoughtful check-in when your health pattern changes.' }, { property: 'og:type', content: 'website' }, { name: 'twitter:card', content: 'summary_large_image' }] }), component: Companion });
