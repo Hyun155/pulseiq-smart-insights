@@ -39,19 +39,30 @@ export function actionLevel(state: State): Level {
   if (detect(state.measurements).persistent) return 'yellow';
   return 'green';
 }
-export const prompts = [
-  "I've noticed a few changes from your usual health pattern over the last few days. How have you been feeling?",
-  'Have you been sleeping less than usual?',
-  'Have you experienced dizziness, shortness of breath, chest discomfort, or unusual pain?',
-];
+export const openingPrompt = "I've noticed a few changes from your usual health pattern over the last few days. How have you been feeling?";
+export function nextQuestion(step: number, answers: string[], symptoms: Symptom[]): string {
+  const said = answers.join(' ').toLowerCase();
+  if (step === 1) return /sleep|rest|insomnia|hours/.test(said)
+    ? 'You mentioned sleep. Has your routine, stress level, or medication changed recently?'
+    : symptoms.some(s => s.name === 'fatigue')
+      ? 'You mentioned feeling tired. Have you been sleeping less than usual, or has anything in your routine changed?'
+      : 'Have you been sleeping less than usual, or has anything in your routine changed?';
+  if (symptoms.some(s => ['chest discomfort', 'shortness of breath', 'severe pain'].includes(s.name)))
+    return 'You mentioned a concerning symptom. Has it started suddenly or become more severe? Please seek urgent care if it is severe or sudden.';
+  if (symptoms.some(s => s.name === 'dizziness')) return 'You mentioned dizziness. Is it new, persistent, or getting worse? Have you had any other concerning symptoms?';
+  return 'Have you experienced dizziness, shortness of breath, chest discomfort, or unusual pain?';
+}
 export function extractSymptoms(text: string): Symptom[] {
   const lower = text.toLowerCase();
   const result: Symptom[] = [];
-  if (/tired|fatigue|exhausted|low energy/.test(lower)) result.push({ name: 'fatigue', severity: /very|really|extremely/.test(lower) ? 'moderate' : 'mild' });
-  if (/dizz|lightheaded/.test(lower) && !/no dizzy|not dizzy|no dizziness/.test(lower)) result.push({ name: 'dizziness', severity: /little|mild|slight/.test(lower) ? 'mild' : 'moderate' });
-  if (/short(ness)? of breath|breathless/.test(lower) && !/no shortness/.test(lower)) result.push({ name: 'shortness of breath', severity: 'concerning' });
-  if (/chest (pain|discomfort|pressure)/.test(lower) && !/no chest/.test(lower)) result.push({ name: 'chest discomfort', severity: 'concerning' });
-  if (/severe pain/.test(lower) && !/no severe pain/.test(lower)) result.push({ name: 'severe pain', severity: 'concerning' });
+  // Evaluate each clause independently so "no dizziness, but chest pain" still records chest pain.
+  const clauses = lower.split(/\bbut\b|[.;]/);
+  const present = (pattern: RegExp, negative: RegExp) => clauses.some(clause => pattern.test(clause) && !negative.test(clause));
+  if (present(/tired|fatigue|exhausted|low energy/, /(?:no|not|never|haven't|don't|without)\s+(?:been\s+|feeling\s+)?(?:tired|fatigue|exhausted|low energy)/)) result.push({ name: 'fatigue', severity: /very|really|extremely/.test(lower) ? 'moderate' : 'mild' });
+  if (present(/dizz|lightheaded/, /(?:no|not|never|haven't|don't|without)\s+(?:been\s+|feeling\s+)?(?:dizz|lightheaded)/)) result.push({ name: 'dizziness', severity: /little|mild|slight/.test(lower) ? 'mild' : 'moderate' });
+  if (present(/short(ness)? of breath|breathless|can't breathe|difficulty breathing/, /(?:no|not|never|haven't|don't|without)\s+(?:been\s+|having\s+|experienced\s+)?(?:short(ness)? of breath|breathless|difficulty breathing)/)) result.push({ name: 'shortness of breath', severity: 'concerning' });
+  if (present(/chest (pain|discomfort|pressure)/, /(?:no|not|never|haven't|don't|without)\s+(?:been\s+|having\s+|experienced\s+)?chest (pain|discomfort|pressure)/)) result.push({ name: 'chest discomfort', severity: 'concerning' });
+  if (present(/severe pain/, /(?:no|not|never|haven't|don't|without)\s+(?:been\s+|having\s+|experienced\s+)?severe pain/)) result.push({ name: 'severe pain', severity: 'concerning' });
   return result;
 }
 export const initialState: State = {
