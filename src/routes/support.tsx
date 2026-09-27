@@ -1,0 +1,3 @@
+import { createFileRoute } from '@tanstack/react-router';
+import { Support } from '@/components/pulseiq/Views';
+export const Route = createFileRoute('/support')({ head: () => ({ meta: [{ title: 'Trusted support — PulseIQ' }, { name: 'description', content: 'Explore consent-based simulated check-in requests to a trusted person.' }, { property: 'og:title', content: 'Trusted support — PulseIQ' }, { property: 'og:description', content: 'A trusted person, brought in when it matters.' }, { property: 'og:type', content: 'website' }, { name: 'twitter:card', content: 'summary_large_image' }] }), component: Support });

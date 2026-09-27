@@ -1,0 +1,3 @@
+import { createFileRoute } from '@tanstack/react-router';
+import { Profile } from '@/components/pulseiq/Views';
+export const Route = createFileRoute('/profile')({ head: () => ({ meta: [{ title: 'Health profile — PulseIQ' }, { name: 'description', content: 'See the simulated personal baseline that powers PulseIQ insights.' }, { property: 'og:title', content: 'Health profile — PulseIQ' }, { property: 'og:description', content: 'Your usual pattern is the starting point.' }, { property: 'og:type', content: 'website' }, { name: 'twitter:card', content: 'summary_large_image' }] }), component: Profile });

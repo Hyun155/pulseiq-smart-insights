@@ -1,0 +1,3 @@
+import { createFileRoute } from '@tanstack/react-router';
+import { Timeline } from '@/components/pulseiq/Views';
+export const Route = createFileRoute('/timeline')({ head: () => ({ meta: [{ title: 'Health timeline — PulseIQ' }, { name: 'description', content: 'Follow simulated measurements, detected changes, check-ins, and support over time.' }, { property: 'og:title', content: 'Health timeline — PulseIQ' }, { property: 'og:description', content: 'See the story of your health pattern over time.' }, { property: 'og:type', content: 'website' }, { name: 'twitter:card', content: 'summary_large_image' }] }), component: Timeline });
