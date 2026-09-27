@@ -28,9 +28,9 @@ export function detect(measurements: Measurement[]) {
   const flags = recent.map(d => ({ hr: d.hr > ranges.hr[1] + 3, sleep: d.sleep < ranges.sleep[0] - .5, steps: d.steps < ranges.steps[0] * .85 }));
   const signalCount = (['hr', 'sleep', 'steps'] as const).filter(key => flags.every(f => f[key])).length;
   const persistent = recent.length === 3 && signalCount >= 2;
-  const latest = measurements.at(-1) ?? baselineDays.at(-1) ?? baselineDays[0];
+  const latest: Measurement = measurements.at(-1) ?? baselineDays.at(-1) ?? { day: 'Baseline', hr: 64, sleep: 7.5, steps: 8000 };
   const deviation = { hr: Math.round((latest.hr / baseline.hr - 1) * 100), sleep: Math.round((latest.sleep / baseline.sleep - 1) * 100), steps: Math.round((latest.steps / baseline.steps - 1) * 100) };
-  const trend = recent.length === 3 && recent[0].hr < recent[1].hr && recent[1].hr <= recent[2].hr;
+  const trend = recent.length === 3 && (recent[0]?.hr ?? 0) < (recent[1]?.hr ?? 0) && (recent[1]?.hr ?? 0) <= (recent[2]?.hr ?? 0);
   return { latest, signalCount, persistent, deviation, trend, duration: flags.filter(f => Object.values(f).filter(Boolean).length >= 2).length };
 }
 export function actionLevel(state: State): Level {
