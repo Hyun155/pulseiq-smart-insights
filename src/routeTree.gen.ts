@@ -11,8 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CompanionRouteImport } from './routes/companion'
+import { Route as HealthDataRouteImport } from './routes/health-data'
 import { Route as InsightsRouteImport } from './routes/insights'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as ReportsRouteImport } from './routes/reports'
 import { Route as SupportRouteImport } from './routes/support'
 import { Route as TimelineRouteImport } from './routes/timeline'
 
@@ -26,6 +28,11 @@ const CompanionRoute = CompanionRouteImport.update({
   path: '/companion',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HealthDataRoute = HealthDataRouteImport.update({
+  id: '/health-data',
+  path: '/health-data',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const InsightsRoute = InsightsRouteImport.update({
   id: '/insights',
   path: '/insights',
@@ -34,6 +41,11 @@ const InsightsRoute = InsightsRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SupportRoute = SupportRouteImport.update({
@@ -50,16 +62,20 @@ const TimelineRoute = TimelineRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/companion': typeof CompanionRoute
+  '/health-data': typeof HealthDataRoute
   '/insights': typeof InsightsRoute
   '/profile': typeof ProfileRoute
+  '/reports': typeof ReportsRoute
   '/support': typeof SupportRoute
   '/timeline': typeof TimelineRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/companion': typeof CompanionRoute
+  '/health-data': typeof HealthDataRoute
   '/insights': typeof InsightsRoute
   '/profile': typeof ProfileRoute
+  '/reports': typeof ReportsRoute
   '/support': typeof SupportRoute
   '/timeline': typeof TimelineRoute
 }
@@ -67,23 +83,42 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/companion': typeof CompanionRoute
+  '/health-data': typeof HealthDataRoute
   '/insights': typeof InsightsRoute
   '/profile': typeof ProfileRoute
+  '/reports': typeof ReportsRoute
   '/support': typeof SupportRoute
   '/timeline': typeof TimelineRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/companion' | '/insights' | '/profile' | '/support' | '/timeline'
+    | '/'
+    | '/companion'
+    | '/health-data'
+    | '/insights'
+    | '/profile'
+    | '/reports'
+    | '/support'
+    | '/timeline'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/companion' | '/insights' | '/profile' | '/support' | '/timeline'
+  to:
+    | '/'
+    | '/companion'
+    | '/health-data'
+    | '/insights'
+    | '/profile'
+    | '/reports'
+    | '/support'
+    | '/timeline'
   id:
     | '__root__'
     | '/'
     | '/companion'
+    | '/health-data'
     | '/insights'
     | '/profile'
+    | '/reports'
     | '/support'
     | '/timeline'
   fileRoutesById: FileRoutesById
@@ -91,8 +126,10 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CompanionRoute: typeof CompanionRoute
+  HealthDataRoute: typeof HealthDataRoute
   InsightsRoute: typeof InsightsRoute
   ProfileRoute: typeof ProfileRoute
+  ReportsRoute: typeof ReportsRoute
   SupportRoute: typeof SupportRoute
   TimelineRoute: typeof TimelineRoute
 }
@@ -113,6 +150,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CompanionRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/health-data': {
+      id: '/health-data'
+      path: '/health-data'
+      fullPath: '/health-data'
+      preLoaderRoute: typeof HealthDataRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/insights': {
       id: '/insights'
       path: '/insights'
@@ -125,6 +169,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/support': {
@@ -147,8 +198,10 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CompanionRoute: CompanionRoute,
+  HealthDataRoute: HealthDataRoute,
   InsightsRoute: InsightsRoute,
   ProfileRoute: ProfileRoute,
+  ReportsRoute: ReportsRoute,
   SupportRoute: SupportRoute,
   TimelineRoute: TimelineRoute,
 }

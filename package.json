@@ -15,6 +15,7 @@
     "rolldown": "1.2.1"
   },
   "dependencies": {
+    "@ai-sdk/google": "^4.0.82",
     "@ai-sdk/openai": "^4.0.78",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.12",
@@ -55,6 +56,7 @@
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.575.0",
     "react": "^19.2.0",
     "react-day-picker": "^9.14.0",
