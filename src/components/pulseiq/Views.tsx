@@ -27,6 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { usePulse } from "@/pulseiq/store";
 import {
   actionLevel,
+  analyzeToday,
   baseline,
   detect,
   ranges,
@@ -40,7 +41,7 @@ import {
   type CompanionResponse,
 } from "@/pulseiq/insight.functions";
 import wearable from "@/assets/pulseiq-wearable.jpg";
-import { jsPDF } from "jspdf";
+import { buildReport } from "@/pulseiq/report";
 
 const levelCopy: Record<
   Level,
@@ -772,6 +773,7 @@ export function Companion() {
   const [loading, setLoading] = useState(false);
   const active = state.scenario !== "stable" || Boolean(companion);
   const observed = detect(state.measurements);
+  const today = analyzeToday(observed.latest);
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
@@ -796,6 +798,7 @@ export function Companion() {
         },
       });
       setCompanion(result.data);
+      try { sessionStorage.setItem("pulseiq-companion", JSON.stringify(result.data)); } catch { /* ignore */ }
     } catch (e) {
       setError(
         e instanceof Error
@@ -845,6 +848,26 @@ export function Companion() {
             )}
           </div>
           <div className="chat-body">
+            <div className="today-analysis">
+              <div className="today-analysis-head">
+                <Eyebrow>TODAY'S HEALTH SUMMARY · {today.healthy ? "HEALTHY" : "CHANGES NOTED"}</Eyebrow>
+                <strong>{today.overall}</strong>
+                {companion?.dailySummary ? <p>{companion.dailySummary}</p> : loading ? <p>AI is analyzing today's data…</p> : null}
+              </div>
+              <ul>
+                {today.metrics.map((m) => {
+                  const ai = companion?.metricInsights.find((x) => { const t = x.metric.toLowerCase(); return ({ hr: /resting heart|heart rate$|^heart rate/.test(t) && !/variab|hrv/.test(t), hrv: /hrv|variab/.test(t), sleep: /sleep/.test(t), steps: /step|activity/.test(t), spo2: /spo|oxygen/.test(t), respiratoryRate: /resp|breath/.test(t), recovery: /recover/.test(t) } as Record<string, boolean>)[m.key]; });
+                  return (
+                    <li key={m.key} className={`metric-row metric-${m.status}`}>
+                      <span className="metric-row-label">{m.label}</span>
+                      <span className="metric-row-value">{m.value} <small>usual {m.usual}</small></span>
+                      <span className="metric-row-badge">{m.status === "normal" ? "Normal" : m.status === "high" ? "Above usual" : "Below usual"}</span>
+                      {m.status !== "normal" && <span className="metric-row-meaning">{ai?.meaning || m.meaning}</span>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
             {!active ? (
               <div className="chat-empty">
                 <div className="empty-mark">
@@ -1559,112 +1582,12 @@ export function HealthData() {
     </>
   );
 }
-function addReportText(pdf: jsPDF, title: string, lines: string[], page: number) {
-  pdf.setFont("helvetica", "bold");
-  pdf.setFontSize(18);
-  pdf.text(title, 22, 28);
-  pdf.setFont("helvetica", "normal");
-  pdf.setFontSize(10);
-  lines.forEach((line, index) => pdf.text(line, 22, 45 + index * 8));
-  pdf.setFontSize(8);
-  pdf.text(
-    "PulseIQ identifies changes in simulated personal health patterns. This report is not a medical diagnosis and is intended for personal reference and discussion with an appropriate healthcare professional.",
-    22,
-    280,
-    { maxWidth: 165 },
-  );
-  pdf.text(`Page ${page} of 6`, 174, 280);
-}
 export function Reports() {
   const { state, setReportGenerated } = usePulse();
-  const { latest, duration, signalCount } = detect(state.measurements);
   const generate = () => {
-    const pdf = new jsPDF();
-    const common = [
-      "Alex Morgan",
-      "Observation period: Sep 19–Sep 23, simulated",
-      `Current status: ${actionLevel(state) === "green" ? "Monitoring" : state.scenario === "improved" ? "Improving" : state.scenario === "persistent" ? "Persistent" : "Meaningful change detected"}`,
-    ];
-    addReportText(
-      pdf,
-      "PulseIQ Health Summary",
-      [
-        ...common,
-        "",
-        "Key changes",
-        `Resting HR ${latest.hr} BPM · HRV ${latest.hrv} ms`,
-        `Sleep ${latest.sleep.toFixed(1)} hours · Activity ${latest.steps.toLocaleString()} steps`,
-        `SpO2 ${latest.spo2}% · Respiratory rate ${latest.respiratoryRate}/min`,
-        `Recovery ${latest.recovery} / 100`,
-      ],
-      1,
-    );
-    pdf.addPage();
-    addReportText(
-      pdf,
-      "Trends",
-      [
-        "Seven-day simulated trends compared with personal baseline ranges.",
-        "Resting HR: 62–67 BPM",
-        "HRV: 51–62 ms",
-        "Sleep: 7–8 hours",
-        "Activity: 7,000–9,000 steps",
-      ],
-      2,
-    );
-    pdf.addPage();
-    addReportText(
-      pdf,
-      "Detected Pattern",
-      [
-        `What changed: ${signalCount} health signals moved together.`,
-        `Pattern duration: ${duration} consecutive days`,
-        "Evidence: resting HR, HRV, sleep, activity, and recovery.",
-        "Interpretation: several signals remained outside the usual pattern.",
-      ],
-      3,
-    );
-    pdf.addPage();
-    addReportText(
-      pdf,
-      "Symptoms & Context",
-      [
-        `Reported symptoms: ${state.symptoms.length ? state.symptoms.map((s) => `${s.name} (${s.severity})`).join(", ") : "None recorded"}`,
-        `Medication context: ${state.medication || "Not recorded"}`,
-        `Cycle / wellbeing context: ${state.cycle || "Not recorded"}`,
-        `Lifestyle notes: ${state.notes || "Not recorded"}`,
-        "User-reported information is kept distinct from observed signals.",
-      ],
-      4,
-    );
-    pdf.addPage();
-    addReportText(
-      pdf,
-      "AI Check-in Summary",
-      [
-        `Reason: ${state.scenario === "stable" ? "No active check-in" : "Several signals changed together"}`,
-        `Questions answered: ${state.step} of 3`,
-        `Reported symptoms: ${state.symptoms.map((s) => s.name).join(", ") || "None"}`,
-        "The conversational layer adds context and does not override deterministic safety rules.",
-      ],
-      5,
-    );
-    pdf.addPage();
-    addReportText(
-      pdf,
-      "Follow-up",
-      [
-        `Initial status: ${state.scenario === "stable" ? "Monitoring" : "Meaningful change detected"}`,
-        `Action taken: ${state.step === 3 ? "Check-in completed" : "Check-in pending"}`,
-        `Recheck: ${state.recheck === "complete" ? "Complete" : "Pending"}`,
-        "Questions to discuss with a healthcare professional:",
-        "When did these changes begin?",
-        "How persistent have the symptoms been?",
-        "What additional measurements might be useful?",
-      ],
-      6,
-    );
-    pdf.save("pulseiq-health-summary.pdf");
+    let ai = null;
+    try { ai = JSON.parse(sessionStorage.getItem("pulseiq-companion") || "null"); } catch { ai = null; }
+    buildReport(state, ai);
     setReportGenerated(true);
   };
   return (
