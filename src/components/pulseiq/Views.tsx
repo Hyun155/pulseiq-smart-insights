@@ -856,7 +856,7 @@ export function Companion() {
               </div>
               <ul>
                 {today.metrics.map((m) => {
-                  const ai = companion?.metricInsights.find((x) => x.metric.toLowerCase().includes(m.label.split(" ")[0]!.toLowerCase().replace("daily", "step")));
+                  const ai = companion?.metricInsights.find((x) => { const t = x.metric.toLowerCase(); return ({ hr: /resting heart|heart rate$|^heart rate/.test(t) && !/variab|hrv/.test(t), hrv: /hrv|variab/.test(t), sleep: /sleep/.test(t), steps: /step|activity/.test(t), spo2: /spo|oxygen/.test(t), respiratoryRate: /resp|breath/.test(t), recovery: /recover/.test(t) } as Record<string, boolean>)[m.key]; });
                   return (
                     <li key={m.key} className={`metric-row metric-${m.status}`}>
                       <span className="metric-row-label">{m.label}</span>
