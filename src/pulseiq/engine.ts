@@ -71,3 +71,26 @@ export const initialState: State = {
   recheck: null, notified: false, contact: { name: 'Sarah', relationship: 'Daughter', method: 'SMS', persistent: true, highConcern: true },
   medication: '', cycle: '', notes: '', reportGenerated: false,
 };
+
+export type MetricStatus = 'normal' | 'high' | 'low';
+export type MetricAnalysis = { key: string; label: string; value: string; usual: string; status: MetricStatus; change: number; meaning: string };
+const metricMeta = [
+  { key: 'hr', label: 'Resting heart rate', unit: ' BPM', range: ranges.hr, high: 'A higher resting heart rate often appears alongside short sleep, stress, dehydration, caffeine, or your body fighting off strain.', low: 'A lower resting heart rate than usual is often seen with good recovery or high fitness.' },
+  { key: 'hrv', label: 'Heart rate variability', unit: ' ms', range: ranges.hrv, high: 'Higher HRV usually reflects good recovery and a relaxed nervous system.', low: 'Lower HRV often appears when the body is under strain — poor sleep, stress, heavy training, or feeling unwell.' },
+  { key: 'sleep', label: 'Sleep', unit: ' h', range: ranges.sleep, high: 'Longer sleep than usual can reflect catching up on rest or recovering from strain.', low: 'Short sleep reduces recovery and commonly occurs alongside higher heart rate and lower energy the next day.' },
+  { key: 'steps', label: 'Daily steps', unit: '', range: ranges.steps, high: 'More activity than usual — a sign of good energy levels.', low: 'Lower activity may reflect tiredness, a busy schedule, or not feeling your best.' },
+  { key: 'spo2', label: 'Blood oxygen (SpO₂)', unit: '%', range: ranges.spo2, high: '', low: 'Oxygen below 95% is worth rechecking; if it stays low or comes with breathlessness, seek medical advice.' },
+  { key: 'respiratoryRate', label: 'Respiratory rate', unit: '/min', range: ranges.respiratoryRate, high: 'A slightly faster breathing rate at rest can appear alongside strain, poor sleep, or illness.', low: 'A slower breathing rate than usual is generally not a concern at rest.' },
+  { key: 'recovery', label: 'Recovery score', unit: '/100', range: ranges.recovery, high: 'Your body appears well recovered and ready for normal activity.', low: 'Low recovery suggests your body may benefit from lighter activity and extra rest today.' },
+] as const;
+export function analyzeToday(m: Measurement) {
+  const metrics: MetricAnalysis[] = metricMeta.map(meta => {
+    const v = m[meta.key]; const [lo, hi] = meta.range;
+    const status: MetricStatus = v > hi ? 'high' : v < lo ? 'low' : 'normal';
+    const base = baseline[meta.key];
+    return { key: meta.key, label: meta.label, value: `${meta.key === 'steps' ? v.toLocaleString() : v}${meta.unit}`, usual: `${meta.key === 'steps' ? `${lo.toLocaleString()}–${hi.toLocaleString()}` : `${lo}–${hi}`}${meta.unit}`, status, change: Math.round((v / base - 1) * 100), meaning: status === 'normal' ? 'Within your usual range.' : status === 'high' ? (meta.high || 'Within a healthy range.') : meta.low };
+  });
+  const out = metrics.filter(x => x.status !== 'normal' && !(x.key === 'spo2' && x.status === 'high'));
+  const overall = out.length === 0 ? 'Healthy — all signals are within your usual pattern today.' : out.length <= 2 ? `Mostly healthy — ${out.length} signal${out.length > 1 ? 's are' : ' is'} outside your usual range.` : `Needs attention — ${out.length} signals moved away from your usual pattern together.`;
+  return { metrics, outOfRange: out, overall, healthy: out.length === 0 };
+}
