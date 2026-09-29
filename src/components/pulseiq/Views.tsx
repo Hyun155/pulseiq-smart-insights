@@ -1102,6 +1102,9 @@ export function Timeline() {
           </p>
         </div>
       </div>
+      <HealthSummaryPanel />
+
+
     </>
   );
 }
@@ -1678,7 +1681,7 @@ export function HealthData() {
     </>
   );
 }
-export function Reports() {
+function HealthSummaryPanel() {
   const { state, setReportGenerated } = usePulse();
   const generate = () => {
     let ai = null;
@@ -1687,15 +1690,10 @@ export function Reports() {
     setReportGenerated(true);
   };
   return (
-    <>
-      <PageHeading
-        eyebrow="PERSONAL HEALTH SUMMARY"
-        title="Reports"
-        description="Create a structured PDF from the current simulated state for reference and discussion with a healthcare professional."
-      />
+    <div className="report-block">
       <div className="report-hero">
         <div>
-          <Eyebrow>REPORT READY WHEN YOU ARE</Eyebrow>
+          <Eyebrow>PERSONAL HEALTH SUMMARY</Eyebrow>
           <h2>PulseIQ Health Summary</h2>
           <p>Six pages connecting data, pattern, context, understanding, action, and recheck.</p>
         </div>
@@ -1740,6 +1738,7 @@ export function Reports() {
         <CircleAlert size={16} /> This report is based on simulated personal health patterns and is
         not a medical diagnosis.
       </p>
-    </>
+    </div>
   );
 }
+
