@@ -1100,8 +1100,10 @@ export function Timeline() {
             PulseIQ connects measurements, conversations, and follow-ups so you can see what changed
             and what happened next.
           </p>
+        </div>
       </div>
       <HealthSummaryPanel />
+
 
     </>
   );
