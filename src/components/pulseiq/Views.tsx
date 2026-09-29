@@ -872,7 +872,7 @@ export function Companion() {
               <div className="today-analysis-head">
                 <Eyebrow>TODAY'S HEALTH SUMMARY · {today.healthy ? "HEALTHY" : "CHANGES NOTED"}</Eyebrow>
                 <strong>{today.overall}</strong>
-                {companion?.dailySummary ? <p>{companion.dailySummary}</p> : loading ? <p>AI is analyzing today's data…</p> : null}
+                {companion?.dailySummary ? <p>{companion.dailySummary}</p> : loading ? <p>AI is analyzing today's data…</p> : error ? <p className="form-error" role="alert">{error}</p> : null}
               </div>
               <ul>
                 {today.metrics.map((m) => {
