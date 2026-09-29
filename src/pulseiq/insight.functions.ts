@@ -16,7 +16,9 @@ async function askModel(instructions: string, payload: unknown): Promise<string>
     headers: { "Lovable-API-Key": key, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
     fetch: runId.fetch as typeof fetch,
   });
+  let streamError: unknown = null;
   const result = streamText({
+    onError: ({ error }: { error: unknown }) => { streamError = error; },
     model: openai.responses(MODEL),
     instructions,
     messages: [{ role: "user", content: JSON.stringify(payload) }],
@@ -35,7 +37,7 @@ async function askModel(instructions: string, payload: unknown): Promise<string>
     text = await result.text;
   } catch (e) {
     // Read the real HTTP status (the error may be wrapped in `cause`/`lastError`).
-    const err = e as { statusCode?: number; cause?: { statusCode?: number }; lastError?: { statusCode?: number }; message?: string };
+    const err = (streamError ?? e) as { statusCode?: number; cause?: { statusCode?: number }; lastError?: { statusCode?: number }; message?: string };
     const status = err?.statusCode ?? err?.cause?.statusCode ?? err?.lastError?.statusCode;
     const msg = err?.message ?? String(e);
     console.error("[PulseIQ AI]", status, msg);
