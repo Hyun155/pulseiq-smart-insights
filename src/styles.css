@@ -57,3 +57,22 @@
 .metric-high .metric-row-badge, .metric-low .metric-row-badge { background: color-mix(in oklab, var(--destructive) 20%, transparent); }
 .metric-row-meaning { grid-column: 1 / -1; color: var(--muted-foreground); font-size: .82rem; }
 @media (max-width: 760px) { .metric-row { grid-template-columns: 1fr auto; } .metric-row-value { grid-column: 1 / -1; } }
+
+.role-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 1rem; background: color-mix(in oklab, var(--foreground) 45%, transparent); }
+.role-card { background: var(--card); color: var(--card-foreground); border-radius: 1.25rem; padding: 2rem; max-width: 34rem; width: 100%; box-shadow: 0 20px 60px -20px color-mix(in oklab, var(--foreground) 40%, transparent); }
+.role-card h2 { font-size: 1.5rem; font-weight: 700; margin: 1rem 0 .4rem; }
+.role-card > p { color: var(--muted-foreground); margin-bottom: 1.25rem; }
+.role-options { display: grid; gap: .75rem; }
+.role-options button { text-align: left; border: 1px solid var(--border); border-radius: 1rem; padding: 1rem 1.1rem; display: grid; gap: .25rem; background: var(--background); transition: border-color .15s; }
+.role-options button:hover, .role-options button:focus-visible { border-color: var(--primary); }
+.role-options span { color: var(--muted-foreground); font-size: .9rem; }
+.role-switch { text-decoration: underline; color: var(--primary); font: inherit; }
+.med-reminder { border: 1px solid var(--primary); background: color-mix(in oklab, var(--primary) 8%, var(--card)); border-radius: 1rem; padding: 1rem 1.1rem; margin-bottom: 1rem; }
+.med-reminder p { margin: .3rem 0 .6rem; font-size: .92rem; }
+.med-reminder ul, .med-list { display: grid; gap: .5rem; list-style: none; padding: 0; }
+.med-reminder li, .med-list li { display: flex; justify-content: space-between; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.med-list { margin-top: 1rem; border-top: 1px solid var(--border); padding-top: .75rem; }
+.med-taken { display: inline-flex; align-items: center; gap: .3rem; color: var(--primary); font-weight: 600; font-size: .85rem; }
+.med-form { display: grid; gap: .6rem; margin-top: .75rem; }
+.field-error { color: var(--destructive); }
+.support-note { display: block; margin-top: .75rem; color: var(--muted-foreground); font-size: .82rem; line-height: 1.45; }
