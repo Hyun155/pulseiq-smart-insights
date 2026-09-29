@@ -31,6 +31,8 @@ import {
   baseline,
   detect,
   ranges,
+  activeMedications,
+  todayISO,
   type Level,
   type Measurement,
 } from "@/pulseiq/engine";
@@ -766,7 +768,8 @@ export function AIInsightsPage() {
   );
 }
 export function Companion() {
-  const { state, answer, run } = usePulse();
+  const { state, answer, run, markTaken } = usePulse();
+  const dueMeds = activeMedications(state.medications);
   const [input, setInput] = useState("");
   const [companion, setCompanion] = useState<CompanionResponse | null>(null);
   const [error, setError] = useState("");
@@ -848,6 +851,23 @@ export function Companion() {
             )}
           </div>
           <div className="chat-body">
+            {dueMeds.length > 0 && (
+              <div className="med-reminder" role="status">
+                <Eyebrow>MEDICATION REMINDER</Eyebrow>
+                <p>Here's your medication plan for today. Please take it as prescribed.</p>
+                <ul>
+                  {dueMeds.map((m) => {
+                    const taken = m.takenOn.includes(todayISO());
+                    return (
+                      <li key={m.id}>
+                        <span><strong>{m.name}</strong> {m.dose} · {m.time}</span>
+                        {taken ? <span className="med-taken"><Check size={14} /> Taken</span> : <Button size="sm" variant="outline" onClick={() => markTaken(m.id)}>Mark as taken</Button>}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
             <div className="today-analysis">
               <div className="today-analysis-head">
                 <Eyebrow>TODAY'S HEALTH SUMMARY · {today.healthy ? "HEALTHY" : "CHANGES NOTED"}</Eyebrow>
@@ -1085,6 +1105,46 @@ export function Timeline() {
     </>
   );
 }
+function MedicationPlan() {
+  const { state, addMedication, removeMedication } = usePulse();
+  const t = todayISO();
+  const [f, setF] = useState({ name: "", dose: "", time: "08:00", start: t, end: t });
+  const [err, setErr] = useState("");
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!f.name.trim()) return setErr("Enter a medication name.");
+    if (f.end < f.start) return setErr("End date must be on or after the start date.");
+    setErr("");
+    addMedication({ ...f, name: f.name.trim(), dose: f.dose.trim() });
+    setF({ ...f, name: "", dose: "" });
+  };
+  return (
+    <div className="profile-section">
+      <Eyebrow>MEDICATION SIMULATION</Eyebrow>
+      <h2>Medication intake plan</h2>
+      <p>Add a medication for a period. The AI Companion will remind you each day it is active.</p>
+      <form onSubmit={submit} className="med-form">
+        <label className="field-label">Medication name<Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} maxLength={60} placeholder="e.g. Vitamin D" /></label>
+        <label className="field-label">Dose<Input value={f.dose} onChange={(e) => setF({ ...f, dose: e.target.value })} maxLength={30} placeholder="e.g. 1 tablet" /></label>
+        <label className="field-label">Time<Input type="time" value={f.time} onChange={(e) => setF({ ...f, time: e.target.value })} /></label>
+        <label className="field-label">Start date<Input type="date" value={f.start} onChange={(e) => setF({ ...f, start: e.target.value })} /></label>
+        <label className="field-label">End date<Input type="date" value={f.end} onChange={(e) => setF({ ...f, end: e.target.value })} /></label>
+        {err && <small className="field-error">{err}</small>}
+        <Button type="submit">Submit medication</Button>
+      </form>
+      {state.medications.length > 0 && (
+        <ul className="med-list">
+          {state.medications.map((m) => (
+            <li key={m.id}>
+              <span><strong>{m.name}</strong> {m.dose} · {m.time} · {m.start} → {m.end}</span>
+              <Button size="sm" variant="ghost" onClick={() => removeMedication(m.id)}>Remove</Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 export function Profile() {
   const { state, setContext } = usePulse();
   return (
@@ -1168,16 +1228,32 @@ export function Profile() {
             />
           </label>
         </div>
+        <MedicationPlan />
       </div>
     </>
   );
 }
 export function Support() {
-  const { state, updateContact, notify } = usePulse();
+  const { state, updateContact, notify, saveContact } = usePulse();
+  const [phoneError, setPhoneError] = useState("");
   const level = actionLevel(state);
-  const canNotify =
+  const submitContact = (e: FormEvent) => {
+    e.preventDefault();
+    if (!state.contact.name.trim()) return setPhoneError("Enter the trusted person's name.");
+    if (!/^\+?[0-9\s-]{7,16}$/.test(state.contact.phone.trim())) return setPhoneError("Enter a valid phone number (7–15 digits).");
+    setPhoneError("");
+    saveContact();
+  };
+  if (state.role !== "elderly")
+    return (
+      <>
+        <PageHeading eyebrow="HUMAN CONNECTION" title="Trusted support" description="Trusted support is available in Elderly mode." />
+        <p>Switch to Elderly mode from the sidebar to set up a trusted person.</p>
+      </>
+    );
+  const canNotify = state.contact.saved && (
     (level === "orange" && state.scenario === "persistent" && state.contact.persistent) ||
-    (level === "red" && state.contact.highConcern);
+    (level === "red" && state.contact.highConcern));
   return (
     <>
       <PageHeading
@@ -1186,7 +1262,7 @@ export function Support() {
         description="A person you trust, brought in only when you choose."
       />
       <div className="support-layout">
-        <div className="support-form">
+        <form className="support-form" onSubmit={submitContact}>
           <div className="support-intro">
             <div className="support-icon">
               <ShieldCheck size={24} />
@@ -1224,7 +1300,26 @@ export function Support() {
                 <option>Phone call</option>
               </select>
             </label>
+            <label className="field-label">
+              Phone number
+              <Input
+                type="tel"
+                value={state.contact.phone}
+                onChange={(e) => updateContact({ ...state.contact, phone: e.target.value })}
+                placeholder="e.g. +60 12-345 6789"
+                maxLength={20}
+              />
+            </label>
           </div>
+          {phoneError && <small className="field-error">{phoneError}</small>}
+          <Button type="submit" className="w-full">
+            {state.contact.saved ? <><CheckCircle2 size={16} /> Trusted person saved</> : "Submit trusted person"}
+          </Button>
+          <small className="support-note">
+            Note: a message will only be sent to this person if there is an escalation in your health
+            condition (a persistent change after recheck, or a high-concern situation). Nothing is
+            sent for everyday readings.
+          </small>
           <div className="permission-box">
             <Eyebrow>SHARING PERMISSIONS</Eyebrow>
             <label>
@@ -1250,7 +1345,7 @@ export function Support() {
               </span>
             </label>
           </div>
-        </div>
+        </form>
         <aside className="support-preview">
           <Eyebrow>NOTIFICATION PREVIEW</Eyebrow>
           <div className="preview-avatar">
@@ -1259,6 +1354,7 @@ export function Support() {
           <h3>{state.contact.name.trim() || "Your trusted person"}</h3>
           <span>
             {state.contact.relationship || "Relationship"} · {state.contact.method}
+            {state.contact.phone ? ` · ${state.contact.phone}` : ""}
           </span>
           <div className="preview-message">
             <strong>PulseIQ check-in request</strong>
@@ -1284,7 +1380,7 @@ export function Support() {
           </Button>
           {!canNotify && (
             <small className="support-hint">
-              Available after a persistent recheck or high-concern scenario with permission enabled.
+              {state.contact.saved ? "Only available when your health condition escalates (persistent recheck or high concern) with permission enabled." : "Submit your trusted person's phone number first."}
             </small>
           )}
           {state.notified && (
