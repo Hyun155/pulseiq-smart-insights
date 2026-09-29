@@ -34,9 +34,16 @@ async function askModel(instructions: string, payload: unknown): Promise<string>
   try {
     text = await result.text;
   } catch (e) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (/402|credit/i.test(msg)) throw new Error("AI credits have run out. Add credits to continue using AI analysis.");
-    if (/429|rate/i.test(msg)) throw new Error("The AI is busy right now. Please try again in a moment.");
+    // Read the real HTTP status (the error may be wrapped in `cause`/`lastError`).
+    const err = e as { statusCode?: number; cause?: { statusCode?: number }; lastError?: { statusCode?: number }; message?: string };
+    const status = err?.statusCode ?? err?.cause?.statusCode ?? err?.lastError?.statusCode;
+    const msg = err?.message ?? String(e);
+    console.error("[PulseIQ AI]", status, msg);
+    if (status === 402 || /\b402\b|payment required|insufficient credits/i.test(msg))
+      throw new Error("AI credits have run out. Add credits in your workspace settings to use AI analysis — the rule-based insights still work.");
+    if (status === 403) throw new Error("AI access is currently blocked for this workspace.");
+    if (status === 429 || /\b429\b|rate limit/i.test(msg))
+      throw new Error("The AI is busy right now. Please try again in a moment.");
     throw new Error("The AI could not complete the analysis. Please try again.");
   }
   return text.trim().replace(/^```json\s*/i, "").replace(/\s*```$/i, "");
