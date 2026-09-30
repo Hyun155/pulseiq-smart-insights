@@ -6,7 +6,13 @@ const Context = createContext<Store | null>(null);
 let nextId = 2;
 const event = (label: string, detail: string, kind: Event['kind']): Event => ({ id: nextId++, label, detail, kind });
 export function PulseProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<State>(initialState);
+  const [state, setState] = useState<State>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = window.localStorage.getItem('pulseiq-role');
+      if (saved === 'elderly' || saved === 'adult') return { ...initialState, role: saved };
+    }
+    return initialState;
+  });
   const run = (scenario: Scenario) => setState(s => {
     if (scenario === 'stable') return { ...initialState, role: s.role, medications: s.medications, contact: s.contact, medication: s.medication, cycle: s.cycle, notes: s.notes, events: [...s.events, event('Stable scenario', 'Measurements remain within your usual pattern.', 'data')] };
     if (scenario === 'change') return { ...s, scenario, measurements: [...baselineDays, ...changeDays], symptoms: [], messages: [{ role: 'assistant', text: openingPrompt }], step: 0, recheck: 'pending', notified: false, events: [...s.events, event('Day 1 · Sleep changed', 'Sleep fell to 5.5 hours; resting heart rate rose to 75 BPM.', 'data'), event('Day 2 · Pattern repeated', 'Sleep and activity remained below your usual range.', 'data'), event('Day 3 · Meaningful change detected', 'Three signals changed together for three consecutive days.', 'change'), event('Check-in started', 'PulseIQ asked how you have been feeling.', 'conversation')] };
@@ -32,7 +38,7 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   });
   const updateContact = (contact: Contact) => setState(s => ({ ...s, contact: { ...contact, saved: contact.phone === s.contact.phone && contact.name === s.contact.name ? contact.saved : false } }));
   const saveContact = () => setState(s => ({ ...s, contact: { ...s.contact, saved: true }, events: [...s.events, event('Trusted person saved', `${s.contact.name} (${s.contact.phone}) will only be messaged if your health condition escalates.`, 'support')] }));
-  const setRole = (role: Role) => setState(s => ({ ...s, role }));
+  const setRole = (role: Role) => { if (typeof window !== 'undefined') window.localStorage.setItem('pulseiq-role', role); setState(s => ({ ...s, role })); };
   const addMedication = (m: Omit<Medication, 'id' | 'takenOn'>) => setState(s => ({ ...s, medications: [...s.medications, { ...m, id: nextId++, takenOn: [] }], events: [...s.events, event('Medication plan added', `${m.name} ${m.dose} at ${m.time}, ${m.start} to ${m.end}.`, 'action')] }));
   const removeMedication = (id: number) => setState(s => ({ ...s, medications: s.medications.filter(m => m.id !== id) }));
   const markTaken = (id: number) => setState(s => { const d = todayISO(); const med = s.medications.find(m => m.id === id); if (!med || med.takenOn.includes(d)) return s; return { ...s, medications: s.medications.map(m => m.id === id ? { ...m, takenOn: [...m.takenOn, d] } : m), events: [...s.events, event('Medication taken', `${med.name} ${med.dose} marked as taken today.`, 'action')] }; });
