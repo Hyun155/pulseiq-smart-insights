@@ -546,6 +546,7 @@ export function Insights() {
 export function AIInsightsPage() {
   const { state } = usePulse();
   const [insights, setInsights] = useState<AIInsights | null>(null);
+  const [showActivity, setShowActivity] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const data = detect(state.measurements);
