@@ -550,7 +550,7 @@ export function AIInsightsPage() {
   const [showActivity, setShowActivity] = useState(false);
   const [loading, setLoading] = useState(false);
   const data = detect(state.measurements);
-  const rulePlan = planActivity(data.latest, state.symptoms);
+  const rulePlan = planActivity(data.latest, state.symptoms.map((s) => s.name));
   const activity = { ...rulePlan, ...(insights?.activity ?? {}), diet: rulePlan.diet };
   const generate = async () => {
     setLoading(true);
