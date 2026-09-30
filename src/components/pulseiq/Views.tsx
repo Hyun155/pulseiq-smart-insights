@@ -1064,6 +1064,7 @@ export function Timeline() {
         title="Health timeline"
         description="Every observation and next step, in one clear sequence."
       />
+      <HealthSummaryPanel />
       <div className="timeline-layout">
         <div className="timeline-list">
           {[...state.events].reverse().map((e, i) => (
@@ -1091,20 +1092,7 @@ export function Timeline() {
             </div>
           ))}
         </div>
-        <div className="timeline-aside">
-          <div className="timeline-aside-icon">
-            <TrendingUp size={23} />
-          </div>
-          <h3>A clearer picture, over time.</h3>
-          <p>
-            PulseIQ connects measurements, conversations, and follow-ups so you can see what changed
-            and what happened next.
-          </p>
-        </div>
       </div>
-      <HealthSummaryPanel />
-
-
     </>
   );
 }
@@ -1149,7 +1137,6 @@ function MedicationPlan() {
   );
 }
 export function Profile() {
-  const { state, setContext } = usePulse();
   return (
     <>
       <PageHeading
@@ -1197,39 +1184,6 @@ export function Profile() {
             Calculated averages: {Math.round(baseline.hr)} BPM · {baseline.sleep.toFixed(1)} hours ·{" "}
             {Math.round(baseline.steps).toLocaleString()} steps
           </div>
-        </div>
-        <div className="profile-section">
-          <Eyebrow>OPTIONAL CONTEXT</Eyebrow>
-          <h2>More of your picture</h2>
-          <p>These details add context without assuming what caused a change.</p>
-          <label className="field-label">
-            Medication context
-            <Input
-              value={state.medication}
-              onChange={(e) => setContext("medication", e.target.value)}
-              placeholder="e.g. Taken as usual"
-              maxLength={100}
-            />
-          </label>
-          <label className="field-label">
-            Cycle or wellbeing context
-            <Input
-              value={state.cycle}
-              onChange={(e) => setContext("cycle", e.target.value)}
-              placeholder="Optional"
-              maxLength={100}
-            />
-          </label>
-          <label className="field-label">
-            Other notes
-            <Textarea
-              value={state.notes}
-              onChange={(e) => setContext("notes", e.target.value)}
-              placeholder="Anything else you want to note"
-              maxLength={300}
-              rows={3}
-            />
-          </label>
         </div>
         <MedicationPlan />
       </div>
@@ -1504,7 +1458,7 @@ function HealthTrend({ selected }: { selected: TrendKey }) {
   );
 }
 export function HealthData() {
-  const { state, setContext } = usePulse();
+  const { state } = usePulse();
   const [selected, setSelected] = useState<TrendKey>("heart");
   const [whyRecovery, setWhyRecovery] = useState(false);
   const { latest, deviation } = detect(state.measurements);
@@ -1629,55 +1583,6 @@ export function HealthData() {
           </div>
         </div>
       </div>
-      <div className="profile-section context-panel">
-        <Eyebrow>CONTEXT</Eyebrow>
-        <h2>What was happening around this pattern?</h2>
-        <div className="context-columns">
-          <div>
-            <span className="context-label">OBSERVED DATA</span>
-            <p>Simulated measurements are compared with Alex's personal baseline.</p>
-          </div>
-          <div>
-            <span className="context-label">USER-REPORTED INFORMATION</span>
-            <label className="field-label">
-              Medication context
-              <Input
-                value={state.medication}
-                onChange={(e) => setContext("medication", e.target.value)}
-                placeholder="Taken as usual, missed, or changed"
-                maxLength={100}
-              />
-            </label>
-            <label className="field-label">
-              Cycle / wellbeing context
-              <Input
-                value={state.cycle}
-                onChange={(e) => setContext("cycle", e.target.value)}
-                placeholder="Optional context"
-                maxLength={100}
-              />
-            </label>
-            <label className="field-label">
-              Lifestyle notes
-              <Textarea
-                value={state.notes}
-                onChange={(e) => setContext("notes", e.target.value)}
-                placeholder="Routine or activity changes"
-                maxLength={300}
-                rows={2}
-              />
-            </label>
-          </div>
-          <div>
-            <span className="context-label">SYSTEM INTERPRETATION</span>
-            <p>
-              {state.scenario === "stable"
-                ? "Signals are currently close to the usual pattern."
-                : "Several signals changed together and persisted. PulseIQ describes the pattern without claiming causation."}
-            </p>
-          </div>
-        </div>
-      </div>
     </>
   );
 }
@@ -1706,34 +1611,6 @@ function HealthSummaryPanel() {
           <CheckCircle2 size={18} /> Your current simulation report was downloaded locally as a PDF.
         </div>
       )}
-      <div className="report-grid">
-        {[
-          "Summary",
-          "Trends",
-          "Detected pattern",
-          "Symptoms & context",
-          "AI check-in summary",
-          "Follow-up",
-        ].map((title, index) => (
-          <div className="report-page" key={title}>
-            <span>PAGE {index + 1}</span>
-            <h3>{title}</h3>
-            <p>
-              {index === 0
-                ? "Current status and key measurements."
-                : index === 1
-                  ? "Seven-day trend ranges."
-                  : index === 2
-                    ? "Evidence and pattern duration."
-                    : index === 3
-                      ? "Reported information, clearly separated."
-                      : index === 4
-                        ? "Questions and important answers."
-                        : "Recheck status and next steps."}
-            </p>
-          </div>
-        ))}
-      </div>
       <p className="medical-note">
         <CircleAlert size={16} /> This report is based on simulated personal health patterns and is
         not a medical diagnosis.
