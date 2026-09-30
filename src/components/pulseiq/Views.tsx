@@ -1,3 +1,4 @@
+import { planActivity } from "@/pulseiq/activity";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import {
@@ -548,11 +549,11 @@ export function AIInsightsPage() {
   const [insights, setInsights] = useState<AIInsights | null>(null);
   const [showActivity, setShowActivity] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
   const data = detect(state.measurements);
+  const rulePlan = planActivity(data.latest, state.symptoms);
+  const activity = { ...rulePlan, ...(insights?.activity ?? {}), diet: rulePlan.diet };
   const generate = async () => {
     setLoading(true);
-    setError("");
     try {
       const result = await generateAIInsights({
         data: {
@@ -568,10 +569,8 @@ export function AIInsightsPage() {
         },
       });
       setInsights(result.data);
-    } catch (reason) {
-      setError(
-        reason instanceof Error ? reason.message : "AI insights are unavailable. Please try again.",
-      );
+    } catch {
+      // Silently keep the personalized plan built from your readings.
     } finally {
       setLoading(false);
     }
@@ -602,32 +601,12 @@ export function AIInsightsPage() {
               : "Generate AI insights"}
         </Button>
       </div>
-      {error && (
-        <div className="ai-error" role="alert">
-          <CircleAlert size={17} /> {error}
-        </div>
-      )}
-      {!insights && !loading && !error && (
-        <div className="ai-empty">
-          <Sparkles size={25} />
-          <h2>Your recommendations are ready to be personalized.</h2>
-          <p>
-            PulseIQ will consider all available signals together before suggesting an action. No
-            recommendations are shown until the AI has analyzed this simulation.
-          </p>
-          <Button onClick={generate}>
-            <Sparkles size={16} /> Analyze my health pattern
-          </Button>
-        </div>
-      )}
       {loading && (
-        <div className="ai-empty">
-          <Sparkles size={25} />
-          <h2>Connecting the signals...</h2>
-          <p>The AI is comparing recent trends with your personal baseline and context.</p>
-        </div>
+        <p className="ai-loading-note">
+          <Sparkles size={14} /> Refreshing your plan...
+        </p>
       )}
-      {insights && (
+      {(
         <>
           <section className="ai-section activity-recommendation">
             <div className="ai-section-heading">
@@ -643,11 +622,11 @@ export function AIInsightsPage() {
             <div className="activity-recommendation-body">
               <div className="activity-callout">
                 <span>RECOMMENDED TODAY</span>
-                <h3>{insights.activity.title}</h3>
+                <h3>{activity.title}</h3>
                 <strong>
-                  {insights.activity.duration} · {insights.activity.intensity}
+                  {activity.duration} · {activity.intensity}
                 </strong>
-                <p>{insights.activity.why}</p>
+                <p>{activity.why}</p>
                 <Button variant="outline" onClick={() => setShowActivity((v) => !v)}>
                   <ArrowRight size={16} />{" "}
                   {showActivity ? "Hide suggested activity" : "View suggested activity"}
@@ -657,15 +636,23 @@ export function AIInsightsPage() {
                     <div>
                       <strong>Your suggested plan for today</strong>
                       <span>
-                        {insights.activity.title} — {insights.activity.duration},{" "}
-                        {insights.activity.intensity} intensity ({insights.activity.mode})
+                        {activity.title} — {activity.duration},{" "}
+                        {activity.intensity} intensity ({activity.mode})
                       </span>
                     </div>
-                    {insights.activity.exercises.length > 0 ? (
+                    <div>
+                      <strong>Suggested diet today</strong>
+                      <ul style={{ paddingLeft: "1.2rem", margin: 0 }}>
+                        {activity.diet.map((d) => (
+                          <li key={d}>{d}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    {activity.exercises.length > 0 ? (
                       <div>
                         <strong>Steps to follow</strong>
                         <ol style={{ paddingLeft: "1.2rem", margin: 0 }}>
-                          {insights.activity.exercises.map((ex) => (
+                          {activity.exercises.map((ex) => (
                             <li key={ex}>{ex}</li>
                           ))}
                         </ol>
@@ -678,7 +665,7 @@ export function AIInsightsPage() {
                     )}
                     <div>
                       <strong>Keep in mind</strong>
-                      <span>{insights.activity.recoveryConsiderations}</span>
+                      <span>{activity.recoveryConsiderations}</span>
                     </div>
                   </div>
                 )}
@@ -686,16 +673,16 @@ export function AIInsightsPage() {
               <div className="activity-details">
                 <div>
                   <strong>Mode</strong>
-                  <span>{insights.activity.mode}</span>
+                  <span>{activity.mode}</span>
                 </div>
                 <div>
                   <strong>Recovery considerations</strong>
-                  <span>{insights.activity.recoveryConsiderations}</span>
+                  <span>{activity.recoveryConsiderations}</span>
                 </div>
-                {insights.activity.exercises.length > 0 && (
+                {activity.exercises.length > 0 && (
                   <div>
                     <strong>Suggested exercises</strong>
-                    <span>{insights.activity.exercises.join(" · ")}</span>
+                    <span>{activity.exercises.join(" · ")}</span>
                   </div>
                 )}
               </div>
