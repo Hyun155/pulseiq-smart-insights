@@ -628,49 +628,6 @@ export function AIInsightsPage() {
       )}
       {insights && (
         <>
-          <section className="ai-section">
-            <div className="ai-section-heading">
-              <div>
-                <Eyebrow>AI-GENERATED INSIGHTS</Eyebrow>
-                <h2>AI Top Recommendations</h2>
-                <p>The most important actions from the current combined pattern.</p>
-              </div>
-              <span className="ai-badge">
-                <Sparkles size={13} /> AI-generated
-              </span>
-            </div>
-            <div className="recommendation-grid">
-              {insights.recommendations.map((recommendation, index) => (
-                <article
-                  className={`recommendation-card priority-${recommendation.priority.toLowerCase().replaceAll(" ", "-")}`}
-                  key={`${recommendation.title}-${index}`}
-                >
-                  <div className="recommendation-top">
-                    <span className="recommendation-number">0{index + 1}</span>
-                    <span className="priority-label">{recommendation.priority}</span>
-                  </div>
-                  <h3>{recommendation.title}</h3>
-                  <span className="ai-label">AI Insight</span>
-                  <p>{recommendation.explanation}</p>
-                  <div className="recommendation-detail">
-                    <strong>Why the AI recommends this</strong>
-                    <p>{recommendation.why}</p>
-                    <strong>What to do</strong>
-                    <p>{recommendation.action}</p>
-                  </div>
-                  <div className="based-on">
-                    <strong>Based on</strong>
-                    {recommendation.basedOn.map((item) => (
-                      <span key={item}>{item}</span>
-                    ))}
-                  </div>
-                  {recommendation.timeframe && (
-                    <small className="timeframe">Timeframe: {recommendation.timeframe}</small>
-                  )}
-                </article>
-              ))}
-            </div>
-          </section>
           <section className="ai-section activity-recommendation">
             <div className="ai-section-heading">
               <div>
@@ -690,9 +647,40 @@ export function AIInsightsPage() {
                   {insights.activity.duration} · {insights.activity.intensity}
                 </strong>
                 <p>{insights.activity.why}</p>
-                <Button variant="outline">
-                  <ArrowRight size={16} /> View suggested activity
+                <Button variant="outline" onClick={() => setShowActivity((v) => !v)}>
+                  <ArrowRight size={16} />{" "}
+                  {showActivity ? "Hide suggested activity" : "View suggested activity"}
                 </Button>
+                {showActivity && (
+                  <div className="activity-details" style={{ marginTop: "1rem" }}>
+                    <div>
+                      <strong>Your suggested plan for today</strong>
+                      <span>
+                        {insights.activity.title} — {insights.activity.duration},{" "}
+                        {insights.activity.intensity} intensity ({insights.activity.mode})
+                      </span>
+                    </div>
+                    {insights.activity.exercises.length > 0 ? (
+                      <div>
+                        <strong>Steps to follow</strong>
+                        <ol style={{ paddingLeft: "1.2rem", margin: 0 }}>
+                          {insights.activity.exercises.map((ex) => (
+                            <li key={ex}>{ex}</li>
+                          ))}
+                        </ol>
+                      </div>
+                    ) : (
+                      <div>
+                        <strong>Steps to follow</strong>
+                        <span>Focus on rest and gentle recovery today.</span>
+                      </div>
+                    )}
+                    <div>
+                      <strong>Keep in mind</strong>
+                      <span>{insights.activity.recoveryConsiderations}</span>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="activity-details">
                 <div>
@@ -712,58 +700,8 @@ export function AIInsightsPage() {
               </div>
             </div>
           </section>
-          <section className="ai-section changes-section">
-            <div className="ai-section-heading">
-              <div>
-                <Eyebrow>AI EVIDENCE</Eyebrow>
-                <h2>What Changed in Your Health Data</h2>
-                <p>These explanations connect the observed changes to the recommendations above.</p>
-              </div>
-            </div>
-            <div className="ai-changes">
-              {insights.changes.map((change) => (
-                <article className="ai-change" key={`${change.metric}-${change.period}`}>
-                  <div className="change-heading">
-                    <div>
-                      <h3>{change.metric}</h3>
-                      <span>{change.period}</span>
-                    </div>
-                    <span className={`change-direction ${change.direction}`}>
-                      {change.direction === "up" ? (
-                        <ArrowUpRight size={17} />
-                      ) : change.direction === "down" ? (
-                        <ArrowDownRight size={17} />
-                      ) : (
-                        "—"
-                      )}
-                    </span>
-                  </div>
-                  <strong className="change-current">{change.current}</strong>
-                  <p className="change-delta">{change.change} from your usual pattern</p>
-                  <div className="change-baseline">
-                    <span>Personal baseline</span>
-                    <strong>{change.baseline}</strong>
-                  </div>
-                  <div className="ai-interpretation">
-                    <span>AI Interpretation</span>
-                    <p>{change.interpretation}</p>
-                  </div>
-                  <div className="based-on">
-                    <strong>Contributed to AI analysis</strong>
-                    {change.basedOn.map((item) => (
-                      <span key={item}>{item}</span>
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
         </>
       )}
-      <p className="medical-note">
-        <CircleAlert size={16} /> AI guidance describes simulated health patterns. It does not
-        diagnose conditions or replace professional medical advice.
-      </p>
     </>
   );
 }
