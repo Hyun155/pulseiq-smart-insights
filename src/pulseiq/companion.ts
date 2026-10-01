@@ -29,7 +29,7 @@ export type CompanionView = {
   askContext: boolean;
 };
 
-const tagLabel = (t: string) => contextOptions.find((o) => o.key === t)?.label.toLowerCase() ?? t;
+const tagLabel = (t: string) => contextOptions.find((o) => o.key === t)?.label.toLowerCase().replace("had alcohol", "having alcohol").replace("late night", "a late night") ?? t;
 
 /** Rule-based companion wording. Never diagnoses; safety level comes from actionLevel. */
 export function buildCompanion(state: State): CompanionView {
