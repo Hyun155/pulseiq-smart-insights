@@ -37,12 +37,7 @@ import {
   type Level,
   type Measurement,
 } from "@/pulseiq/engine";
-import {
-  generateAIInsights,
-  generateInsight,
-  type AIInsights,
-  type CompanionResponse,
-} from "@/pulseiq/insight.functions";
+import { buildCompanion, contextOptions, plainTerms } from "@/pulseiq/companion";
 import wearable from "@/assets/pulseiq-wearable.jpg";
 import { buildReport } from "@/pulseiq/report";
 
@@ -546,161 +541,64 @@ export function Insights() {
 }
 export function AIInsightsPage() {
   const { state } = usePulse();
-  const [insights, setInsights] = useState<AIInsights | null>(null);
   const [showActivity, setShowActivity] = useState(false);
-  const [loading, setLoading] = useState(false);
   const data = detect(state.measurements);
-  const rulePlan = planActivity(data.latest, state.symptoms.map((s) => s.name));
-  const activity = { ...rulePlan, ...(insights?.activity ?? {}), diet: rulePlan.diet };
-  const generate = async () => {
-    setLoading(true);
-    try {
-      const result = await generateAIInsights({
-        data: {
-          healthData: state.measurements.slice(-7),
-          baseline,
-          ranges,
-          symptoms: state.symptoms,
-          context: [state.medication, state.cycle, state.notes].filter(Boolean).join("; "),
-          scenario: state.scenario,
-          answers: state.messages
-            .filter((message) => message.role === "user")
-            .map((message) => message.text),
-        },
-      });
-      setInsights(result.data);
-    } catch {
-      // Silently keep the personalized plan built from your readings.
-    } finally {
-      setLoading(false);
-    }
-  };
+  const activity = planActivity(data.latest, state.symptoms.map((s) => s.name));
   return (
     <>
       <PageHeading
-        eyebrow="AI HEALTH GUIDANCE"
+        eyebrow="YOUR PLAN FOR TODAY"
         title="Health insights"
-        description="Understand what the AI sees in your complete health pattern and what you might do next."
+        description="Suggested activity and diet, worked out from today's readings and what you've reported."
       />
-      <div className="ai-insights-toolbar">
-        <div>
-          <span className="ai-spark">
-            <Sparkles size={17} />
-          </span>
+      <section className="ai-section activity-recommendation">
+        <div className="ai-section-heading">
           <div>
-            <strong>AI-generated based on your recent health data</strong>
-            <span>Uses your trends, personal baseline, context, and check-in responses.</span>
+            <Eyebrow>PERSONALIZED ACTIVITY & DIET</Eyebrow>
+            <h2>What should you do today?</h2>
+            <p>Rest is recommended when recovery matters more than exercise.</p>
           </div>
         </div>
-        <Button onClick={generate} disabled={loading}>
-          <Sparkles size={16} />
-          {loading
-            ? "Analyzing your pattern..."
-            : insights
-              ? "Refresh AI insights"
-              : "Generate AI insights"}
-        </Button>
-      </div>
-      {loading && (
-        <p className="ai-loading-note">
-          <Sparkles size={14} /> Refreshing your plan...
-        </p>
-      )}
-      {(
-        <>
-          <section className="ai-section activity-recommendation">
-            <div className="ai-section-heading">
-              <div>
-                <Eyebrow>AI PERSONALIZED ACTIVITY</Eyebrow>
-                <h2>What should you do today?</h2>
-                <p>The AI can recommend rest when recovery is more appropriate than exercise.</p>
-              </div>
-              <span className="ai-badge">
-                <Sparkles size={13} /> AI-generated
-              </span>
-            </div>
-            <div className="activity-recommendation-body">
-              <div className="activity-callout">
-                <span>RECOMMENDED TODAY</span>
-                <h3>{activity.title}</h3>
-                <strong>
-                  {activity.duration} · {activity.intensity}
-                </strong>
-                <p>{activity.why}</p>
-                <Button variant="outline" onClick={() => setShowActivity((v) => !v)}>
-                  <ArrowRight size={16} />{" "}
-                  {showActivity ? "Hide suggested activity" : "View suggested activity"}
-                </Button>
-                {showActivity && (
-                  <div className="activity-details" style={{ marginTop: "1rem" }}>
-                    <div>
-                      <strong>Your suggested plan for today</strong>
-                      <span>
-                        {activity.title} — {activity.duration},{" "}
-                        {activity.intensity} intensity ({activity.mode})
-                      </span>
-                    </div>
-                    <div>
-                      <strong>Suggested diet today</strong>
-                      <ul style={{ paddingLeft: "1.2rem", margin: 0 }}>
-                        {activity.diet.map((d) => (
-                          <li key={d}>{d}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    {activity.exercises.length > 0 ? (
-                      <div>
-                        <strong>Steps to follow</strong>
-                        <ol style={{ paddingLeft: "1.2rem", margin: 0 }}>
-                          {activity.exercises.map((ex) => (
-                            <li key={ex}>{ex}</li>
-                          ))}
-                        </ol>
-                      </div>
-                    ) : (
-                      <div>
-                        <strong>Steps to follow</strong>
-                        <span>Focus on rest and gentle recovery today.</span>
-                      </div>
-                    )}
-                    <div>
-                      <strong>Keep in mind</strong>
-                      <span>{activity.recoveryConsiderations}</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="activity-details">
+        <div className="activity-recommendation-body">
+          <div className="activity-callout">
+            <span>RECOMMENDED TODAY</span>
+            <h3>{activity.title}</h3>
+            <strong>{activity.duration} · {activity.intensity}</strong>
+            <p>{activity.why}</p>
+            <Button variant="outline" onClick={() => setShowActivity((v) => !v)}>
+              <ArrowRight size={16} /> {showActivity ? "Hide suggested activity" : "View suggested activity"}
+            </Button>
+            {showActivity && (
+              <div className="activity-details" style={{ marginTop: "1rem" }}>
                 <div>
-                  <strong>Mode</strong>
-                  <span>{activity.mode}</span>
+                  <strong>Suggested diet today</strong>
+                  <ul style={{ paddingLeft: "1.2rem", margin: 0 }}>{activity.diet.map((d) => <li key={d}>{d}</li>)}</ul>
                 </div>
                 <div>
-                  <strong>Recovery considerations</strong>
-                  <span>{activity.recoveryConsiderations}</span>
+                  <strong>Steps to follow</strong>
+                  <ol style={{ paddingLeft: "1.2rem", margin: 0 }}>{activity.exercises.map((ex) => <li key={ex}>{ex}</li>)}</ol>
                 </div>
-                {activity.exercises.length > 0 && (
-                  <div>
-                    <strong>Suggested exercises</strong>
-                    <span>{activity.exercises.join(" · ")}</span>
-                  </div>
-                )}
+                <div><strong>Keep in mind</strong><span>{activity.recoveryConsiderations}</span></div>
               </div>
-            </div>
-          </section>
-        </>
-      )}
+            )}
+          </div>
+          <div className="activity-details">
+            <div><strong>Mode</strong><span>{activity.mode}</span></div>
+            <div><strong>Recovery considerations</strong><span>{activity.recoveryConsiderations}</span></div>
+            <div><strong>Suggested exercises</strong><span>{activity.exercises.join(" · ")}</span></div>
+          </div>
+        </div>
+      </section>
     </>
   );
 }
 export function Companion() {
-  const { state, answer, run, markTaken } = usePulse();
+  const { state, answer, run, markTaken, tagContext } = usePulse();
   const dueMeds = activeMedications(state.medications);
   const [input, setInput] = useState("");
-  const [companion, setCompanion] = useState<CompanionResponse | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-  const active = state.scenario !== "stable" || Boolean(companion);
+  const [openTerm, setOpenTerm] = useState<string | null>(null);
+  const companion = buildCompanion(state);
+  const active = state.scenario !== "stable";
   const observed = detect(state.measurements);
   const today = analyzeToday(observed.latest);
   const submit = (e: FormEvent) => {
@@ -708,73 +606,25 @@ export function Companion() {
     if (!input.trim()) return;
     answer(input);
     setInput("");
-    setCompanion(null);
-    setError("");
   };
-  const getInsight = async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const result = await generateInsight({
-        data: {
-          healthData: state.measurements.slice(-7),
-          baseline,
-          ranges,
-          symptoms: state.symptoms.map((s) => s.name),
-          context: [state.medication, state.cycle, state.notes].filter(Boolean).join("; "),
-          answers: state.messages.filter((m) => m.role === "user").map((m) => m.text),
-          scenario: state.scenario,
-        },
-      });
-      setCompanion(result.data);
-      try { sessionStorage.setItem("pulseiq-companion", JSON.stringify(result.data)); } catch { /* ignore */ }
-    } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "AI is unavailable. Your rule-based insight remains available.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-  useEffect(() => {
-    void getInsight();
-  }, [state.scenario, state.step, state.symptoms.length]);
   return (
     <>
       <PageHeading
-        eyebrow="PROACTIVE DAILY HEALTH SUPPORT"
-        title="AI Health Companion"
-        description="Your AI-powered daily health companion is already paying attention to your pattern."
+        eyebrow="YOUR DAILY HEALTH UPDATE"
+        title="Health Companion"
+        description="Explains today's readings in plain words and checks in when something changes."
       />
       <div className="companion-layout">
         <div className="chat-panel">
           <div className="chat-header">
-            <div className="chat-avatar">
-              <Sparkles size={20} />
-            </div>
+            <div className="chat-avatar"><HeartPulse size={20} /></div>
             <div>
               <strong>PulseIQ Companion</strong>
-              <span>
-                {active
-                  ? loading
-                    ? "Analyzing your health data"
-                    : "Here with you"
-                  : "Quietly monitoring your usual pattern"}
-              </span>
+              <span>{active ? "Here with you" : "Quietly monitoring your usual pattern"}</span>
             </div>
-            <span className="chat-live">
-              <span /> {active ? "ACTIVE COMPANION" : "DAILY MONITORING"}
+            <span className={`companion-status status-${companion.status}`}>
+              <span /> {companion.status === "follow-up" ? "FOLLOW-UP RECOMMENDED" : companion.status.replace("-", " ").toUpperCase()}
             </span>
-            {companion && (
-              <span className={`companion-status status-${companion.status}`}>
-                <span />{" "}
-                {companion.status === "follow-up"
-                  ? "FOLLOW-UP RECOMMENDED"
-                  : companion.status.toUpperCase()}
-              </span>
-            )}
           </div>
           <div className="chat-body">
             {dueMeds.length > 0 && (
@@ -798,183 +648,83 @@ export function Companion() {
               <div className="today-analysis-head">
                 <Eyebrow>TODAY'S HEALTH SUMMARY · {today.healthy ? "HEALTHY" : "CHANGES NOTED"}</Eyebrow>
                 <strong>{today.overall}</strong>
-                {companion?.dailySummary ? <p>{companion.dailySummary}</p> : loading ? <p>AI is analyzing today's data…</p> : error ? <p className="form-error" role="alert">{error}</p> : null}
+                <p>{companion.dailySummary}</p>
               </div>
               <ul>
-                {today.metrics.map((m) => {
-                  const ai = companion?.metricInsights.find((x) => { const t = x.metric.toLowerCase(); return ({ hr: /resting heart|heart rate$|^heart rate/.test(t) && !/variab|hrv/.test(t), hrv: /hrv|variab/.test(t), sleep: /sleep/.test(t), steps: /step|activity/.test(t), spo2: /spo|oxygen/.test(t), respiratoryRate: /resp|breath/.test(t), recovery: /recover/.test(t) } as Record<string, boolean>)[m.key]; });
-                  return (
-                    <li key={m.key} className={`metric-row metric-${m.status}`}>
-                      <span className="metric-row-label">{m.label}</span>
-                      <span className="metric-row-value">{m.value} <small>usual {m.usual}</small></span>
-                      <span className="metric-row-badge">{m.status === "normal" ? "Normal" : m.status === "high" ? "Above usual" : "Below usual"}</span>
-                      {m.status !== "normal" && <span className="metric-row-meaning">{ai?.meaning || m.meaning}</span>}
-                    </li>
-                  );
-                })}
+                {today.metrics.map((m) => (
+                  <li key={m.key} className={`metric-row metric-${m.status}`}>
+                    <button type="button" className="metric-row-label" style={{ textAlign: "left", textDecoration: "underline dotted" }} onClick={() => setOpenTerm(openTerm === m.key ? null : m.key)} aria-expanded={openTerm === m.key}>{m.label}</button>
+                    <span className="metric-row-value">{m.value} <small>usual {m.usual}</small></span>
+                    <span className="metric-row-badge">{m.status === "normal" ? "Normal" : m.status === "high" ? "Above usual" : "Below usual"}</span>
+                    {openTerm === m.key && <span className="metric-row-meaning"><b>What is this?</b> {plainTerms[m.key]}</span>}
+                    {m.status !== "normal" && <span className="metric-row-meaning">{m.meaning}</span>}
+                  </li>
+                ))}
               </ul>
             </div>
+            {companion.askContext && (
+              <div className="chat-message assistant">
+                <div className="bubble-avatar"><HeartPulse size={15} /></div>
+                <div className="bubble">
+                  <strong>Before we flag this — did any of these happen recently?</strong>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: ".5rem", marginTop: ".6rem" }}>
+                    {contextOptions.map((o) => <Button key={o.key} size="sm" variant="outline" onClick={() => tagContext(o.key)}>{o.label}</Button>)}
+                  </div>
+                </div>
+              </div>
+            )}
             {!active ? (
               <div className="chat-empty">
-                <div className="empty-mark">
-                  <MessageCircle size={30} />
-                </div>
-                <h2>{companion?.headline ?? "Here when it matters."}</h2>
-                <p>
-                  {companion?.response ||
-                    "The AI Companion is reviewing your recent health data and personal baseline."}
-                </p>
-                {!companion && (
-                  <Button onClick={() => run("change")}>
-                    <Zap size={16} /> Run simulation
-                  </Button>
-                )}
+                <div className="empty-mark"><MessageCircle size={30} /></div>
+                <h2>{companion.headline}</h2>
+                <p>{companion.response}</p>
+                <Button onClick={() => run("change")}><Zap size={16} /> Run simulation</Button>
               </div>
             ) : (
               <>
-                <div className="chat-day">TODAY'S AI HEALTH ANALYSIS</div>
-                {state.messages
-                  .filter((m) => m.role === "user")
-                  .map((m, i) => (
-                    <div key={i} className={`chat-message ${m.role}`}>
-                      <div className="bubble-avatar">
-                        {m.role === "assistant" ? <Sparkles size={15} /> : "AM"}
-                      </div>
-                      <div className="bubble">{m.text}</div>
-                    </div>
-                  ))}
-                {companion && (
+                <div className="chat-day">TODAY'S CHECK-IN</div>
+                {state.messages.map((m, i) => (
+                  <div key={i} className={`chat-message ${m.role}`}>
+                    <div className="bubble-avatar">{m.role === "assistant" ? <HeartPulse size={15} /> : "AM"}</div>
+                    <div className="bubble">{m.text}</div>
+                  </div>
+                ))}
+                {state.step >= 3 && (
                   <div className="chat-message assistant">
-                    <div className="bubble-avatar">
-                      <Sparkles size={15} />
-                    </div>
-                    <div className="bubble">
-                      <strong>{companion.headline}</strong>
-                      <br />
-                      {companion.response}
-                      {companion.question && (
-                        <>
-                          <br />
-                          <br />
-                          <strong>{companion.question}</strong>
-                        </>
-                      )}
-                    </div>
+                    <div className="bubble-avatar"><HeartPulse size={15} /></div>
+                    <div className="bubble"><strong>{companion.headline}</strong><br />{companion.response}</div>
                   </div>
                 )}
               </>
             )}
           </div>
-          {active && state.step < 3 && companion?.status !== "urgent" ? (
+          {active && state.step < 3 && companion.status !== "urgent" ? (
             <form className="chat-input" onSubmit={submit}>
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Write a response..."
-                aria-label="Your response to the AI Companion"
-                maxLength={300}
-              />
-              <Button type="submit" size="icon" aria-label="Send response" disabled={!input.trim()}>
-                <Send size={17} />
-              </Button>
+              <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Write a response..." aria-label="Your response to the Companion" maxLength={300} />
+              <Button type="submit" size="icon" aria-label="Send response" disabled={!input.trim()}><Send size={17} /></Button>
             </form>
           ) : (
             <div className="chat-input chat-input-disabled">
-              <span>
-                {active
-                  ? "The AI has reviewed your latest response"
-                  : "The companion is monitoring for meaningful changes."}
-              </span>
+              <span>{active ? "Check-in complete — see Insights for today's plan" : "The companion is monitoring for meaningful changes."}</span>
               <MessageCircle size={18} />
             </div>
           )}
         </div>
         <aside className="companion-side">
           <div className="companion-context">
-            <Eyebrow>AI COMPANION CONTEXT</Eyebrow>
-            <h3>What we know so far</h3>
-            <div className="context-line">
-              <span className="context-icon">
-                <Activity size={16} />
-              </span>
-              <div>
-                <strong>Health pattern</strong>
-                <small>
-                  {observed.signalCount} signals changed · {observed.duration} days observed
-                </small>
-              </div>
-              <Check size={16} />
-            </div>
-            <div className="context-line">
-              <span className="context-icon">
-                <MessageCircle size={16} />
-              </span>
-              <div>
-                <strong>Conversation</strong>
-                <small>
-                  {active
-                    ? `${state.messages.filter((m) => m.role === "user").length} user responses`
-                    : "No action needed right now"}
-                </small>
-              </div>
-            </div>
-            <div className="context-line">
-              <span className="context-icon">
-                <Heart size={16} />
-              </span>
-              <div>
-                <strong>Reported symptoms</strong>
-                <small>
-                  {state.symptoms.length
-                    ? state.symptoms.map((s) => s.name).join(", ")
-                    : "None reported"}
-                </small>
-              </div>
-            </div>
+            <Eyebrow>WHAT WE KNOW SO FAR</Eyebrow>
+            <h3>Your context</h3>
+            <div className="context-line"><span className="context-icon"><Activity size={16} /></span><div><strong>Health pattern</strong><small>{observed.signalCount} signals changed · {observed.duration} days observed</small></div></div>
+            <div className="context-line"><span className="context-icon"><Clock3 size={16} /></span><div><strong>Lifestyle context</strong><small>{state.contextTags.length ? state.contextTags.map((t) => contextOptions.find((o) => o.key === t)?.label).join(", ") : "Nothing reported"}</small></div></div>
+            <div className="context-line"><span className="context-icon"><Heart size={16} /></span><div><strong>Reported symptoms</strong><small>{state.symptoms.length ? state.symptoms.map((s) => s.name).join(", ") : "None reported"}</small></div></div>
           </div>
-          {active && companion && (
-            <div className="ai-summary">
-              <Eyebrow>AI ASSESSMENT · {companion.status.replace("-", " ")}</Eyebrow>
-              <p>{companion.response}</p>
-              {companion.recommendations.length > 0 && (
-                <div className="companion-recommendations">
-                  <strong>AI Top Recommendations</strong>
-                  {companion.recommendations.map((recommendation) => (
-                    <div className="companion-recommendation" key={recommendation.title}>
-                      <b>{recommendation.title}</b>
-                      <span>{recommendation.explanation}</span>
-                      <small>Based on: {recommendation.basedOn.join(" · ")}</small>
-                      <small>
-                        {recommendation.action} · Priority: {recommendation.priority}
-                      </small>
-                      {recommendation.timeframe && (
-                        <small>Timeframe: {recommendation.timeframe}</small>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {active && (
-                <Button
-                  variant="outline"
-                  onClick={getInsight}
-                  disabled={loading}
-                  className="w-full"
-                >
-                  <Sparkles size={16} />
-                  {loading ? "Reflecting..." : "Refresh AI assessment"}
-                </Button>
-              )}
-              {error && (
-                <p className="form-error" role="alert">
-                  {error}
-                </p>
-              )}
-            </div>
-          )}
+          <div className="ai-summary">
+            <Eyebrow>ASSESSMENT · {companion.status.replace("-", " ")}</Eyebrow>
+            <p>{companion.response}</p>
+            <Link to="/insights" className="text-sm font-semibold">See today's activity & diet plan →</Link>
+          </div>
           <p className="medical-note">
-            <CircleAlert size={16} /> This AI Companion describes simulated health patterns, not a
-            medical diagnosis. Seek professional care for concerning symptoms.
+            <CircleAlert size={16} /> PulseIQ describes simulated health patterns, not a medical diagnosis. Seek professional care for concerning symptoms.
           </p>
         </aside>
       </div>
@@ -1117,7 +867,7 @@ export function Profile() {
   );
 }
 export function Support() {
-  const { state, updateContact, notify, saveContact } = usePulse();
+  const { state, updateContact, notify, saveContact, confirmFine } = usePulse();
   const [phoneError, setPhoneError] = useState("");
   const level = actionLevel(state);
   const submitContact = (e: FormEvent) => {
@@ -1134,7 +884,7 @@ export function Support() {
         <p>Switch to Elderly mode from the sidebar to set up a trusted person.</p>
       </>
     );
-  const canNotify = state.contact.saved && (
+  const canNotify = state.contact.saved && !state.feelingFine && (
     (level === "orange" && state.scenario === "persistent" && state.contact.persistent) ||
     (level === "red" && state.contact.highConcern));
   return (
@@ -1240,13 +990,11 @@ export function Support() {
             {state.contact.phone ? ` · ${state.contact.phone}` : ""}
           </span>
           <div className="preview-message">
-            <strong>PulseIQ check-in request</strong>
+            <strong>A gentle note from PulseIQ</strong>
             <p>
-              A persistent change from Alex’s usual health pattern has been detected
-              {state.symptoms.length
-                ? `. They reported ${state.symptoms.map((s) => s.name).join(" and ")}`
-                : ""}
-              . Please check in with them.
+              Hi {state.contact.name.trim() || "there"}, Alex’s rest and activity have been a little different from usual for a few days
+              {state.symptoms.length ? ` and they mentioned ${state.symptoms.map((s) => s.name).join(" and ")}` : ""}
+              . A friendly call to see how they are doing would be lovely.
             </p>
           </div>
           <p className="privacy-copy">
@@ -1266,6 +1014,13 @@ export function Support() {
               {state.contact.saved ? "Only available when your health condition escalates (persistent recheck or high concern) with permission enabled." : "Submit your trusted person's phone number first."}
             </small>
           )}
+          {canNotify && !state.notified && (
+            <div className="support-hint" role="status" style={{ marginTop: ".75rem" }}>
+              <p>Your readings stayed outside your usual range. We'll let {state.contact.name} know in 2 hours unless you confirm you're OK.</p>
+              <Button variant="outline" className="w-full" onClick={confirmFine}><CheckCircle2 size={16} /> I'm feeling fine</Button>
+            </div>
+          )}
+          {state.feelingFine && <small className="support-hint">You confirmed you're feeling fine, so no message will be sent. It re-arms after the next recheck.</small>}
           {state.notified && (
             <div className="sent-message" role="status">
               <CheckCircle2 size={17} /> Simulated notification prepared. No real message was sent.
