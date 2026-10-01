@@ -14,7 +14,7 @@ export function Shell({ children }: { children: ReactNode }) {
   const { state, run, reset, addSymptom, notify, setRole } = usePulse();
   const level = actionLevel(state);
   const elderly = state.role === 'elderly';
-  const canNotify = elderly && state.contact.saved && !!state.contact.name.trim() && ((level === 'orange' && state.scenario === 'persistent' && state.contact.persistent) || (level === 'red' && state.contact.highConcern));
+  const canNotify = elderly && !state.feelingFine && state.contact.saved && !!state.contact.name.trim() && ((level === 'orange' && state.scenario === 'persistent' && state.contact.persistent) || (level === 'red' && state.contact.highConcern));
   const [open, setOpen] = useState(false);
   const [simulationOpen, setSimulationOpen] = useState(false);
   const pathname = useRouterState({ select: s => s.location.pathname });

@@ -9,7 +9,7 @@ export const todayISO = () => new Date().toISOString().slice(0, 10);
 export const activeMedications = (meds: Medication[], day = todayISO()) => meds.filter(m => m.start <= day && day <= m.end);
 export type Message = { role: 'assistant' | 'user'; text: string };
 export type Symptom = { name: string; severity: string };
-export type State = { scenario: Scenario; measurements: Measurement[]; symptoms: Symptom[]; messages: Message[]; step: number; events: Event[]; recheck: 'pending' | 'complete' | null; notified: boolean; contact: Contact; medication: string; cycle: string; notes: string; reportGenerated: boolean; role: Role | null; medications: Medication[] };
+export type State = { scenario: Scenario; measurements: Measurement[]; symptoms: Symptom[]; messages: Message[]; step: number; events: Event[]; recheck: 'pending' | 'complete' | null; notified: boolean; contact: Contact; medication: string; cycle: string; notes: string; reportGenerated: boolean; role: Role | null; medications: Medication[]; contextTags: string[]; feelingFine: boolean };
 
 export const baselineDays: Measurement[] = [
   { day: 'Mon', hr: 64, hrv: 57, sleep: 7.6, sleepScore: 84, deepSleep: 1.4, remSleep: 1.7, lightSleep: 4.1, awake: 0.4, steps: 8100, activeMinutes: 54, exerciseMinutes: 28, spo2: 98, respiratoryRate: 15, recovery: 78 }, { day: 'Tue', hr: 65, hrv: 55, sleep: 7.4, sleepScore: 82, deepSleep: 1.3, remSleep: 1.6, lightSleep: 4.2, awake: 0.3, steps: 7800, activeMinutes: 51, exerciseMinutes: 25, spo2: 97, respiratoryRate: 15, recovery: 76 },
@@ -73,7 +73,7 @@ export const initialState: State = {
   scenario: 'stable', measurements: baselineDays, symptoms: [], messages: [], step: 0,
   events: [{ id: 1, label: 'Baseline established', detail: 'Seven days of simulated wearable data define your usual pattern.', kind: 'data' }],
   recheck: null, notified: false, contact: { name: 'Sarah', relationship: 'Daughter', method: 'SMS', phone: '', saved: false, persistent: true, highConcern: true },
-  medication: '', cycle: '', notes: '', reportGenerated: false, role: null, medications: [],
+  medication: '', cycle: '', notes: '', reportGenerated: false, role: null, medications: [], contextTags: [], feelingFine: false,
 };
 
 export type MetricStatus = 'normal' | 'high' | 'low';
