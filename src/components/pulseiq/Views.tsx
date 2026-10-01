@@ -20,6 +20,7 @@ import {
   Sparkles,
   TrendingUp,
   UserRound,
+  Wifi,
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ import {
   actionLevel,
   analyzeToday,
   baseline,
+  calculateBaselineStats,
   detect,
   ranges,
   activeMedications,
@@ -53,17 +55,17 @@ const levelCopy: Record<
     action: "Continue monitoring",
   },
   yellow: {
-    name: "Recheck",
+    name: "Watch & Wait (24–48h)",
     title: "Something has shifted.",
-    description: "We've detected a meaningful change from your usual health pattern.",
-    action: "Complete your check-in",
+    description: "Your body is working harder to recover today. Let's observe how you feel tomorrow.",
+    action: "Observe and recheck",
   },
   orange: {
-    name: "Follow up",
-    title: "Let’s take a closer look.",
+    name: "Meaningful change",
+    title: "Your pattern has persisted.",
     description:
       "The pattern has persisted alongside what you reported. Consider discussing these changes with a healthcare professional.",
-    action: "Review your next steps",
+    action: "Review your action plan",
   },
   red: {
     name: "High concern",
@@ -382,8 +384,8 @@ export function Insights() {
               {changed
                 ? state.scenario === "improved"
                   ? "Moving toward your usual pattern"
-                  : "Meaningful change detected"
-                : "No meaningful change detected"}
+                  : "Your pattern shifted"
+                : "Your pattern is steady"}
             </h2>
             <p>
               {changed
@@ -541,66 +543,71 @@ export function Insights() {
 }
 export function AIInsightsPage() {
   const { state } = usePulse();
-  const [showActivity, setShowActivity] = useState(false);
   const data = detect(state.measurements);
   const activity = planActivity(data.latest, state.symptoms.map((s) => s.name));
   return (
     <>
       <PageHeading
-        eyebrow="YOUR PLAN FOR TODAY"
-        title="Health insights"
-        description="Suggested activity and diet, worked out from today's readings and what you've reported."
+        eyebrow="TODAY'S ACTION PLAN"
+        title="Today's Action Plan"
+        description="Customized movement and nutrition based on today's physiological readings."
       />
-      <section className="ai-section activity-recommendation">
-        <div className="ai-section-heading">
-          <div>
-            <Eyebrow>PERSONALIZED ACTIVITY & DIET</Eyebrow>
-            <h2>What should you do today?</h2>
-            <p>Rest is recommended when recovery matters more than exercise.</p>
+      <section className="daily-plan-grid">
+        <article className="daily-plan-card">
+          <div className="daily-plan-card-heading">
+            <h2>Daily Movement &amp; Rest</h2>
+            <span className="daily-plan-icon"><Activity size={18} /></span>
           </div>
-        </div>
-        <div className="activity-recommendation-body">
-          <div className="activity-callout">
-            <span>RECOMMENDED TODAY</span>
-            <h3>{activity.title}</h3>
-            <strong>{activity.duration} · {activity.intensity}</strong>
-            <p>{activity.why}</p>
-            <Button variant="outline" onClick={() => setShowActivity((v) => !v)}>
-              <ArrowRight size={16} /> {showActivity ? "Hide suggested activity" : "View suggested activity"}
-            </Button>
-            {showActivity && (
-              <div className="activity-details" style={{ marginTop: "1rem" }}>
-                <div>
-                  <strong>Suggested diet today</strong>
-                  <ul style={{ paddingLeft: "1.2rem", margin: 0 }}>{activity.diet.map((d) => <li key={d}>{d}</li>)}</ul>
-                </div>
-                <div>
-                  <strong>Steps to follow</strong>
-                  <ol style={{ paddingLeft: "1.2rem", margin: 0 }}>{activity.exercises.map((ex) => <li key={ex}>{ex}</li>)}</ol>
-                </div>
-                <div><strong>Keep in mind</strong><span>{activity.recoveryConsiderations}</span></div>
-              </div>
-            )}
+          <h3>{activity.title}</h3>
+          <div className="plan-badges">
+            <span><small>Duration</small><strong>{activity.duration}</strong></span>
+            <span><small>Intensity</small><strong>{activity.intensity}</strong></span>
           </div>
-          <div className="activity-details">
-            <div><strong>Mode</strong><span>{activity.mode}</span></div>
-            <div><strong>Recovery considerations</strong><span>{activity.recoveryConsiderations}</span></div>
-            <div><strong>Suggested exercises</strong><span>{activity.exercises.join(" · ")}</span></div>
+          <p className="plan-reason">{activity.why}</p>
+          <ul className="plan-checklist">
+            {activity.exercises.slice(0, 3).map((exercise) => <li key={exercise}>{exercise}</li>)}
+          </ul>
+          <p className="plan-note"><strong>Keep in mind</strong>{activity.recoveryConsiderations}</p>
+        </article>
+        <article className="daily-plan-card">
+          <div className="daily-plan-card-heading">
+            <h2>Daily Nutrition &amp; Hydration</h2>
+            <span className="daily-plan-icon"><HeartPulse size={18} /></span>
           </div>
-        </div>
+          <ul className="plan-checklist nutrition-list">
+            {activity.diet.slice(0, 4).map((recommendation) => <li key={recommendation}>{recommendation}</li>)}
+          </ul>
+        </article>
       </section>
+      <p className="medical-note plan-disclaimer">
+        <CircleAlert size={16} /> Guidance is based on simulated biometric patterns and does not substitute for clinical advice.
+      </p>
     </>
   );
 }
 export function Companion() {
-  const { state, answer, run, markTaken, tagContext } = usePulse();
+  const { state, answer, markTaken, tagContext, completeQuickCheckIn } = usePulse();
   const dueMeds = activeMedications(state.medications);
   const [input, setInput] = useState("");
   const [openTerm, setOpenTerm] = useState<string | null>(null);
   const companion = buildCompanion(state);
   const active = state.scenario !== "stable";
   const observed = detect(state.measurements);
-  const today = analyzeToday(observed.latest);
+  const today = analyzeToday(observed.latest, state.measurements);
+  const quickContextOptions = [
+    { key: "late-night", label: "Late night" },
+    { key: "alcohol", label: "Had alcohol" },
+    { key: "travel", label: "Travelling" },
+    { key: "stress", label: "High stress" },
+    { key: "hard-workout", label: "Hard workout" },
+    { key: "none", label: "None of these" },
+  ] as const;
+  const quickFeelingOptions = [
+    { key: "fatigue", label: "Feeling fatigued" },
+    { key: "dizziness", label: "Dizzy / lightheaded" },
+    { key: "headache", label: "Mild headache" },
+    { key: "normal", label: "Normal / feeling fine" },
+  ] as const;
   const submit = (e: FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
@@ -662,25 +669,22 @@ export function Companion() {
                 ))}
               </ul>
             </div>
-            {companion.askContext && (
+            {active && state.step < 3 && (
               <div className="chat-message assistant">
                 <div className="bubble-avatar"><HeartPulse size={15} /></div>
                 <div className="bubble">
-                  <strong>Before we flag this — did any of these happen recently?</strong>
+                  <strong>{state.contextTags.length ? "How is your body feeling today?" : "Did anything explain this shift?"}</strong>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: ".5rem", marginTop: ".6rem" }}>
-                    {contextOptions.map((o) => <Button key={o.key} size="sm" variant="outline" onClick={() => tagContext(o.key)}>{o.label}</Button>)}
+                    {(state.contextTags.length ? quickFeelingOptions : quickContextOptions).map((option) => (
+                      <Button key={option.key} size="sm" variant="outline" onClick={() => state.contextTags.length ? completeQuickCheckIn(option.key) : tagContext(option.key)}>
+                        {option.label}
+                      </Button>
+                    ))}
                   </div>
                 </div>
               </div>
             )}
-            {!active ? (
-              <div className="chat-empty">
-                <div className="empty-mark"><MessageCircle size={30} /></div>
-                <h2>{companion.headline}</h2>
-                <p>{companion.response}</p>
-                <Button onClick={() => run("change")}><Zap size={16} /> Run simulation</Button>
-              </div>
-            ) : (
+            {active && (
               <>
                 <div className="chat-day">TODAY'S CHECK-IN</div>
                 {state.messages.map((m, i) => (
@@ -700,7 +704,7 @@ export function Companion() {
           </div>
           {active && state.step < 3 && companion.status !== "urgent" ? (
             <form className="chat-input" onSubmit={submit}>
-              <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Write a response..." aria-label="Your response to the Companion" maxLength={300} />
+              <Input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Add notes or details (optional)" aria-label="Add notes or details (optional)" maxLength={300} />
               <Button type="submit" size="icon" aria-label="Send response" disabled={!input.trim()}><Send size={17} /></Button>
             </form>
           ) : (
@@ -813,6 +817,9 @@ function MedicationPlan() {
   );
 }
 export function Profile() {
+  const { state } = usePulse();
+  const history = state.measurements.length > 7 ? state.measurements.slice(0, -3) : state.measurements;
+  const profileStats = calculateBaselineStats(history);
   return (
     <>
       <PageHeading
@@ -824,7 +831,7 @@ export function Profile() {
         <div className="avatar avatar-large">AM</div>
         <div>
           <h2>Alex Morgan</h2>
-          <p>Fictional demonstration profile · 7-day baseline</p>
+          <p>Fictional demonstration profile · rolling personal baseline</p>
         </div>
         <span className="profile-badge">
           <CheckCircle2 size={16} /> Baseline established
@@ -839,26 +846,26 @@ export function Profile() {
             <HeartPulse size={20} />
             <span>Resting heart rate</span>
             <strong>
-              {ranges.hr[0]}–{ranges.hr[1]} BPM
+              {profileStats.hr.lower.toFixed(1)}–{profileStats.hr.upper.toFixed(1)} BPM
             </strong>
           </div>
           <div className="baseline-row">
             <Clock3 size={20} />
             <span>Sleep duration</span>
             <strong>
-              {ranges.sleep[0]}–{ranges.sleep[1]} hours
+              {profileStats.sleep.lower.toFixed(1)}–{profileStats.sleep.upper.toFixed(1)} hours
             </strong>
           </div>
           <div className="baseline-row">
             <Activity size={20} />
             <span>Daily activity</span>
             <strong>
-              {ranges.steps[0].toLocaleString()}–{ranges.steps[1].toLocaleString()} steps
+              {Math.round(profileStats.steps.lower).toLocaleString()}–{Math.round(profileStats.steps.upper).toLocaleString()} steps
             </strong>
           </div>
           <div className="baseline-average">
-            Calculated averages: {Math.round(baseline.hr)} BPM · {baseline.sleep.toFixed(1)} hours ·{" "}
-            {Math.round(baseline.steps).toLocaleString()} steps
+            Weighted mean: {profileStats.hr.mean.toFixed(1)} BPM · {profileStats.sleep.mean.toFixed(1)} hours ·{" "}
+            {Math.round(profileStats.steps.mean).toLocaleString()} steps · ±1σ confidence ranges
           </div>
         </div>
         <MedicationPlan />
@@ -1143,6 +1150,8 @@ export function HealthData() {
   const [selected, setSelected] = useState<TrendKey>("heart");
   const [whyRecovery, setWhyRecovery] = useState(false);
   const { latest, deviation } = detect(state.measurements);
+  const history = state.measurements.length > 7 ? state.measurements.slice(0, -3) : state.measurements;
+  const dataStats = calculateBaselineStats(history);
   return (
     <>
       <PageHeading
@@ -1154,14 +1163,18 @@ export function HealthData() {
         <Eyebrow>RECOVERY / READINESS</Eyebrow>
         <h2>{latest.recovery} / 100</h2>
         <p>
-          {latest.recovery < ranges.recovery[0]
+          {latest.recovery < dataStats.recovery.lower
             ? "Below your usual range"
             : "Within your usual range"}
         </p>
         <div className="chips">
-          <span className="chip">Resting HR {latest.hr > ranges.hr[1] ? "↑" : "—"}</span>
-          <span className="chip">HRV {latest.hrv < ranges.hrv[0] ? "↓" : "—"}</span>
-          <span className="chip">Sleep {latest.sleep < ranges.sleep[0] ? "↓" : "—"}</span>
+          <span className="chip">Resting HR {latest.hr > dataStats.hr.upper ? "↑" : "—"}</span>
+          <span className="chip">HRV {latest.hrv < dataStats.hrv.lower ? "↓" : "—"}</span>
+          <span className="chip">Sleep {latest.sleep < dataStats.sleep.lower ? "↓" : "—"}</span>
+        </div>
+        <div className="sensor-quality" aria-label="Sensor contact quality: 98 percent, reliable">
+          <Wifi size={15} />
+          <span>Sensor contact: <strong>98% (Reliable)</strong></span>
         </div>
         <Button variant="outline" onClick={() => setWhyRecovery((v) => !v)}>
           Why is my recovery lower?

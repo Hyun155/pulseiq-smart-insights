@@ -35,7 +35,7 @@ const tagLabel = (t: string) => contextOptions.find((o) => o.key === t)?.label.t
 export function buildCompanion(state: State): CompanionView {
   const level = actionLevel(state);
   const data = detect(state.measurements);
-  const today = analyzeToday(data.latest);
+  const today = analyzeToday(data.latest, state.measurements);
   const out = today.outOfRange;
   const tags = state.contextTags.filter((t) => t !== "none");
   const dailySummary = out.length
@@ -48,14 +48,14 @@ export function buildCompanion(state: State): CompanionView {
   const headline = {
     urgent: "Please seek support now",
     "follow-up": "This change has lasted — worth a closer look",
-    "check-in": "A meaningful change from your usual pattern",
-    monitoring: "Your pattern looks steady",
+    "check-in": "Watch & wait for 24–48 hours",
+    monitoring: "Quiet monitoring is on",
   }[status];
   const response = {
     urgent: "What you reported together with your readings is a reason to contact a health professional promptly. If symptoms are severe or sudden, seek urgent care.",
     "follow-up": "Your readings have stayed outside your usual range after a recheck. Consider talking to a healthcare professional, and keep tracking how you feel." + contextLine,
-    "check-in": `We've detected a meaningful change from your usual health pattern over ${data.duration} days.` + contextLine,
-    monitoring: out.length ? "A reading or two moved a little today, but your overall pattern is steady." : "Keep up your usual routine — we'll keep watching quietly.",
+    "check-in": `Your body is working harder to recover today. Let's observe how you feel tomorrow. Your measurements have shifted from your usual pattern over ${data.duration} days.` + contextLine,
+    monitoring: out.length ? "A reading or two moved a little today, but no multi-signal check-in is needed." : "No check-in is needed today. We'll stay quiet unless several signals shift together.",
   }[status];
   return { status, headline, response, dailySummary, askContext: !today.healthy && state.contextTags.length === 0 && status !== "urgent" };
 }

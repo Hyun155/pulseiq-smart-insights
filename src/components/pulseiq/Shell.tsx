@@ -3,7 +3,7 @@ import { Activity, ChartNoAxesCombined, HeartPulse, History, House, MessageCircl
 import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { usePulse } from '@/pulseiq/store';
-import { actionLevel } from '@/pulseiq/engine';
+import { actionLevel, simulationPresetLabels, type SimulationDay, type SimulationPreset } from '@/pulseiq/engine';
 
 const nav = [
   { to: '/', label: 'Overview', icon: House }, { to: '/health-data', label: 'Health Data', icon: HeartPulse }, { to: '/insights', label: 'Insights', icon: ChartNoAxesCombined },
@@ -11,10 +11,10 @@ const nav = [
   { to: '/support', label: 'Trusted support', icon: ShieldCheck },
 ] as const;
 export function Shell({ children }: { children: ReactNode }) {
-  const { state, run, reset, addSymptom, notify, setRole } = usePulse();
+  const { state, run, reset, notify, setRole, selectSimulationPreset, setSimulationDay, toggleSimulationSymptom } = usePulse();
   const level = actionLevel(state);
   const elderly = state.role === 'elderly';
-  const canNotify = elderly && !state.feelingFine && state.contact.saved && !!state.contact.name.trim() && ((level === 'orange' && state.scenario === 'persistent' && state.contact.persistent) || (level === 'red' && state.contact.highConcern));
+  const canNotify = elderly && state.simulationPreset === 'dehydration' && state.simulationDay === 3 && !state.feelingFine && state.contact.saved && !!state.contact.name.trim() && ((level === 'orange' && state.scenario === 'persistent' && state.contact.persistent) || (level === 'red' && state.contact.highConcern));
   const [open, setOpen] = useState(false);
   const [simulationOpen, setSimulationOpen] = useState(false);
   const pathname = useRouterState({ select: s => s.location.pathname });
@@ -30,7 +30,32 @@ export function Shell({ children }: { children: ReactNode }) {
     <div className="main-column"><header className="topbar"><div className="topbar-left"><Button variant="ghost" size="icon" className="mobile-menu" onClick={() => setOpen(v => !v)} aria-label={open ? 'Close menu' : 'Open menu'}>{open ? <X/> : <Menu/>}</Button><span className="breadcrumb">PulseIQ <span>/</span> {title}</span></div><div className="topbar-right"><span className="demo-pill"><span/> LIVE DEMO</span><span className="topbar-date">Simulated data</span><Link className="topbar-profile-link" to="/profile" aria-label="Open Alex Morgan health profile"><span>Alex Morgan</span><div className="avatar avatar-small">AM</div></Link></div></header>
       <main className="page-content">{children}</main>
     </div>
-    <div className={`simulation-bar ${simulationOpen ? 'simulation-open' : ''}`}><button className="sim-toggle" onClick={() => setSimulationOpen(v => !v)} aria-expanded={simulationOpen}><div className="sim-label"><div className="sim-icon"><Play size={16} fill="currentColor"/></div><div><strong>Simulation Mode {simulationOpen ? '▴' : '▾'}</strong><span>Drive the PulseIQ story</span></div></div></button>{simulationOpen && <div className="sim-actions"><Button size="sm" variant="simOutline" onClick={() => run('stable')}>Stable</Button><Button size="sm" onClick={() => run('change')}><Play size={14}/> Detect persistent change</Button><Button size="sm" variant="simOutline" disabled={state.scenario === 'stable'} onClick={() => addSymptom('fatigue')}>Add fatigue</Button><Button size="sm" variant="simOutline" disabled={state.scenario === 'stable'} onClick={() => addSymptom('dizziness')}>Add dizziness</Button><Button size="sm" variant="simOutline" disabled={state.scenario === 'stable'} onClick={() => run('improved')}>Recheck: improved</Button><Button size="sm" variant="simOutline" disabled={state.scenario === 'stable'} onClick={() => run('persistent')}>Recheck: persistent</Button><Button size="sm" variant="simOutline" disabled={state.scenario === 'stable'} onClick={() => run('worsening')}>Worsening</Button>{elderly && <Button size="sm" variant="simOutline" disabled={!canNotify} onClick={notify}>Trigger trusted support</Button>}<Button size="icon" variant="ghost" title="Reset simulation" aria-label="Reset simulation" onClick={reset}><RotateCcw size={17}/></Button></div>}</div>
+    <div className={`simulation-bar ${simulationOpen ? 'simulation-open' : ''}`}>
+      <button className="sim-toggle" onClick={() => setSimulationOpen(v => !v)} aria-expanded={simulationOpen}>
+        <div className="sim-label"><div className="sim-icon"><Play size={16} fill="currentColor"/></div><div><strong>Simulation Mode {simulationOpen ? '▴' : '▾'}</strong><span>Explore a 3-day health story</span></div></div>
+      </button>
+      {simulationOpen && <div className="sim-controls">
+        <label className="sim-field">Scenario
+          <select value={state.simulationPreset} onChange={event => selectSimulationPreset(event.target.value as SimulationPreset)}>
+            {(Object.keys(simulationPresetLabels) as SimulationPreset[]).map(preset => <option key={preset} value={preset}>{simulationPresetLabels[preset]}</option>)}
+          </select>
+        </label>
+        <div className="sim-stepper" aria-label="Simulation day">
+          <span>Day</span>
+          {([1, 2, 3] as SimulationDay[]).map(day => <Button key={day} size="sm" variant={state.simulationDay === day ? 'default' : 'simOutline'} onClick={() => setSimulationDay(day)}>{day}</Button>)}
+        </div>
+        <div className="sim-symptoms">
+          <span>Quick symptoms</span>
+          {['Mild headache', 'Chills / Warm', 'Body aches', 'Dizziness', 'Fatigue'].map(symptom => <button key={symptom} className={state.symptoms.some(item => item.name === symptom.toLowerCase()) ? 'sim-symptom active' : 'sim-symptom'} onClick={() => toggleSimulationSymptom(symptom.toLowerCase())}>{symptom}</button>)}
+        </div>
+        <div className="sim-outcomes">
+          <Button size="sm" variant="simOutline" disabled={state.simulationPreset === 'baseline'} onClick={() => run('improved')}>Recheck: Improved</Button>
+          <Button size="sm" variant="simOutline" disabled={state.simulationPreset === 'baseline'} onClick={() => run('worsening')}>Recheck: Worsening</Button>
+          {elderly && <Button size="sm" variant="simOutline" disabled={!canNotify} onClick={notify}>Trusted support (after 2h)</Button>}
+          <Button size="icon" variant="ghost" title="Reset simulation" aria-label="Reset simulation" onClick={reset}><RotateCcw size={17}/></Button>
+        </div>
+      </div>}
+    </div>
     {!state.role && <div className="role-overlay" role="dialog" aria-modal="true" aria-labelledby="role-title"><div className="role-card"><div className="brand-mark"><Activity size={22} strokeWidth={2.5} /></div><h2 id="role-title">Welcome to PulseIQ</h2><p>Who will be using PulseIQ? You can change this later from the sidebar.</p><div className="role-options"><button onClick={() => setRole('elderly')}><strong>Elderly user</strong><span>Includes trusted support — a family member can be alerted if your health condition escalates.</span></button><button onClick={() => setRole('adult')}><strong>Adult user</strong><span>Personal insights and check-ins, managed on your own.</span></button></div></div></div>}
   </div>;
 }

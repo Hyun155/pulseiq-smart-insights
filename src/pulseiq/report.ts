@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import { actionLevel, analyzeToday, baseline, detect, ranges, type Measurement, type State } from "./engine";
+import { actionLevel, analyzeToday, calculateBaselineStats, detect, type Measurement, type State } from "./engine";
 
 const W = 210, M = 18, CW = W - M * 2;
 const levelLabel = { green: "Monitor", yellow: "Recheck", orange: "Follow up", red: "High concern" } as const;
@@ -84,32 +84,56 @@ export function buildReport(state: State, ai?: { dailySummary?: string; response
   const d = new Doc();
   const level = actionLevel(state);
   const det = detect(state.measurements);
-  const today = analyzeToday(det.latest);
+  const history = state.measurements.length > 7 ? state.measurements.slice(0, -3) : state.measurements;
+  const stats = calculateBaselineStats(history);
+  const today = analyzeToday(det.latest, state.measurements);
   const days = state.measurements.slice(-10);
-  const status = level === "green" ? "Monitoring — within usual pattern" : state.scenario === "improved" ? "Improving" : state.scenario === "persistent" ? "Persistent change" : state.scenario === "worsening" ? "Worsening" : "Meaningful change detected";
+  const recent = state.measurements.slice(-3);
+  const meanDelta = (key: "hr" | "hrv" | "sleep" | "steps" | "recovery") => {
+    const mean = recent.reduce((sum, measurement) => sum + measurement[key], 0) / Math.max(recent.length, 1);
+    return Math.round((mean / stats[key].mean - 1) * 100);
+  };
+  const confidenceRange = (key: "hr" | "sleep" | "steps" | "recovery"): readonly [number, number] => [stats[key].lower, stats[key].upper];
+  const status = level === "green" ? "Monitoring — within usual pattern" : state.scenario === "improved" ? "Improving" : state.scenario === "persistent" ? "Persistent change" : state.scenario === "worsening" ? "Worsening" : "Your pattern shifted";
   const userAnswers = state.messages.filter(m => m.role === "user");
 
-  // 1 Summary
-  d.newPage("Health Summary", `Generated ${new Date().toLocaleString()} · simulated data`);
+  // 1 SBAR handoff
+  d.newPage("Doctor's Visit Packet", `SBAR handoff · generated ${new Date().toLocaleString()} · simulated data`);
+  d.heading("S · Situation");
+  d.para(`${levelLabel[level]}: ${status}. ${det.signalCount} signals changed together over ${det.duration} observed day${det.duration === 1 ? "" : "s"}.`);
+  d.heading("B · Background");
+  d.para(`Personalized baseline uses a weighted rolling window of up to 28 prior measurements${stats.hr.dayAware ? ", with day-of-week matching" : ""}. The current observation covers ${days.length} recorded measurement${days.length === 1 ? "" : "s"}.`);
+  d.heading("A · Assessment");
+  d.para(det.persistent ? "Several measurements are outside the personalized confidence range at the same time. This describes a pattern, not its cause or a diagnosis." : "No persistent multi-signal change is currently present in the available measurements.");
+  d.heading("R · Recommendation");
+  d.para(level === "red" ? "Seek prompt medical attention, especially if symptoms are severe or sudden." : level === "orange" ? "Consider a professional follow-up and share this packet." : level === "yellow" ? "Watch and wait 24–48 hours, then recheck and follow up if the pattern continues." : "Continue the usual routine and keep monitoring.");
   d.table(["Field", "Value"], [["Name", "Alex Morgan (fictional)"], ["Observation period", `${days[0]?.day ?? "-"} to ${det.latest.day} (${days.length} days)`], ["Current status", status], ["Action level", `${level.toUpperCase()} · ${levelLabel[level]}`], ["Signals changed together", `${det.signalCount}`], ["Days outside pattern", `${det.duration}`]], [60, CW - 60]);
   d.box("Today at a glance", today.overall + (ai?.dailySummary ? " " + ai.dailySummary : ""), level === "green" ? [226, 243, 236] : level === "red" ? [250, 226, 222] : [252, 238, 222]);
   d.heading("Today's measurements");
   d.table(["Metric", "Today", "Usual range", "vs baseline", "Status"], today.metrics.map(m => [m.label, m.value, m.usual, `${m.change > 0 ? "+" : ""}${m.change}%`, m.status.toUpperCase()]), [52, 30, 36, 28, CW - 146]);
 
   // 2 Trends
-  d.newPage("Trends", "Daily values compared with your personal baseline range");
-  d.chart("Resting heart rate (BPM)", days, "hr", ranges.hr, " BPM");
-  d.chart("Sleep (hours)", days, "sleep", ranges.sleep, " h");
-  d.chart("Daily steps", days, "steps", ranges.steps, "");
-  d.chart("Recovery score", days, "recovery", ranges.recovery, "");
+  d.newPage("Trends", "Daily values compared with personalized confidence ranges");
+  d.chart("Resting heart rate (BPM)", days, "hr", confidenceRange("hr"), " BPM");
+  d.chart("Sleep (hours)", days, "sleep", confidenceRange("sleep"), " h");
+  d.chart("Daily steps", days, "steps", confidenceRange("steps"), "");
+  d.chart("Recovery score", days, "recovery", confidenceRange("recovery"), "");
 
   // 3 Detected pattern + full data
   d.newPage("Detected Pattern", "What changed, for how long, and the evidence");
   d.para(det.persistent ? `${det.signalCount} health signals moved away from your usual pattern together for ${det.duration} consecutive days. ${det.trend ? "Resting heart rate has been trending upward day by day." : ""} A change across several signals at once is more meaningful than a single unusual reading.` : "No persistent multi-signal change is currently detected. Your measurements remain close to your usual pattern.");
   d.heading("What each out-of-range reading may represent");
   d.bullets(today.outOfRange.length ? today.outOfRange.map(m => `${m.label} ${m.status} (${m.value}, usual ${m.usual}): ${m.meaning}`) : ["All readings are within your usual range today."]);
-  d.heading("Personal baseline (7-day average)");
-  d.table(["HR", "HRV", "Sleep", "Steps", "SpO2", "Resp.", "Recovery"], [[baseline.hr.toFixed(1), baseline.hrv.toFixed(1), baseline.sleep.toFixed(1) + " h", Math.round(baseline.steps).toLocaleString(), baseline.spo2.toFixed(1) + "%", baseline.respiratoryRate.toFixed(1), baseline.recovery.toFixed(0)]], Array(7).fill(CW / 7));
+  d.heading(`Personalized baseline (${stats.hr.windowDays}-measurement rolling window)`);
+  d.table(["HR", "HRV", "Sleep", "Steps", "SpO2", "Resp.", "Recovery"], [[stats.hr.mean.toFixed(1), stats.hrv.mean.toFixed(1), stats.sleep.mean.toFixed(1) + " h", Math.round(stats.steps.mean).toLocaleString(), stats.spo2.mean.toFixed(1) + "%", stats.respiratoryRate.mean.toFixed(1), stats.recovery.mean.toFixed(0)]], Array(7).fill(CW / 7));
+  d.heading("3-day mean delta vs baseline");
+  d.table(["Metric", "3-day mean", "Baseline mean", "Delta"], [
+    ["Resting heart rate", `${(recent.reduce((sum, m) => sum + m.hr, 0) / Math.max(recent.length, 1)).toFixed(1)} BPM`, `${stats.hr.mean.toFixed(1)} BPM`, `${meanDelta("hr") >= 0 ? "+" : ""}${meanDelta("hr")}%`],
+    ["HRV", `${(recent.reduce((sum, m) => sum + m.hrv, 0) / Math.max(recent.length, 1)).toFixed(1)} ms`, `${stats.hrv.mean.toFixed(1)} ms`, `${meanDelta("hrv") >= 0 ? "+" : ""}${meanDelta("hrv")}%`],
+    ["Sleep", `${(recent.reduce((sum, m) => sum + m.sleep, 0) / Math.max(recent.length, 1)).toFixed(1)} h`, `${stats.sleep.mean.toFixed(1)} h`, `${meanDelta("sleep") >= 0 ? "+" : ""}${meanDelta("sleep")}%`],
+    ["Steps", `${Math.round(recent.reduce((sum, m) => sum + m.steps, 0) / Math.max(recent.length, 1)).toLocaleString()}`, `${Math.round(stats.steps.mean).toLocaleString()}`, `${meanDelta("steps") >= 0 ? "+" : ""}${meanDelta("steps")}%`],
+    ["Recovery", `${(recent.reduce((sum, m) => sum + m.recovery, 0) / Math.max(recent.length, 1)).toFixed(1)}`, `${stats.recovery.mean.toFixed(1)}`, `${meanDelta("recovery") >= 0 ? "+" : ""}${meanDelta("recovery")}%`],
+  ], [52, 36, 36, CW - 124]);
   d.heading("Daily data");
   d.table(["Day", "HR", "HRV", "Sleep", "Steps", "SpO2", "Resp.", "Recov."], days.map(m => [m.day, `${m.hr}`, `${m.hrv}`, `${m.sleep}`, m.steps.toLocaleString(), `${m.spo2}`, `${m.respiratoryRate}`, `${m.recovery}`]), [26, 20, 20, 20, 26, 20, 20, CW - 152]);
 
@@ -117,6 +141,15 @@ export function buildReport(state: State, ai?: { dailySummary?: string; response
   d.newPage("Symptoms & Context", "User-reported information, kept separate from measured signals");
   d.table(["Symptom", "Severity"], state.symptoms.length ? state.symptoms.map(s => [s.name, s.severity]) : [["None reported", "-"]], [90, CW - 90]);
   d.table(["Context", "Details"], [["Medication", state.medication || "Not recorded"], ["Cycle / wellbeing", state.cycle || "Not recorded"], ["Lifestyle notes", state.notes || "Not recorded"]], [50, CW - 50]);
+  d.heading("Key ruled-out / not-reported factors");
+  const symptomNames = new Set(state.symptoms.map(symptom => symptom.name));
+  d.bullets([
+    `Chest pain or discomfort: ${symptomNames.has("chest discomfort") ? "reported" : "not reported in the check-in"}.`,
+    `Shortness of breath: ${symptomNames.has("shortness of breath") ? "reported" : "not reported in the check-in"}.`,
+    `Severe pain: ${symptomNames.has("severe pain") ? "reported" : "not reported in the check-in"}.`,
+    "Fever: not captured by this simulation; temperature was not measured.",
+    `Lifestyle confounders: ${state.contextTags.filter(tag => tag !== "none").length ? state.contextTags.filter(tag => tag !== "none").join(", ") + " noted" : "none reported"}.`,
+  ]);
   d.para("Symptoms and context occurred alongside the measured changes; this report does not imply one caused the other.", 9);
 
   // 5 AI check-in

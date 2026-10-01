@@ -19,6 +19,7 @@ export function planActivity(m: Measurement, symptoms: string[]): ActivityPlan {
   const redFlag = has(symptoms, "chest") || has(symptoms, "breath") || has(symptoms, "faint");
   const dizzy = has(symptoms, "dizz");
   const tired = has(symptoms, "fatigue") || has(symptoms, "tired");
+  const feverish = has(symptoms, "fever") || has(symptoms, "warm") || has(symptoms, "ache");
   const lowSleep = m.sleep < 6.5;
   const highHr = m.hr > 70;
   const lowRecovery = m.recovery < 65;
@@ -41,6 +42,8 @@ export function planActivity(m: Measurement, symptoms: string[]): ActivityPlan {
     diet.push("Don't skip meals — eat small regular portions and add a pinch of salt to soups if you feel light-headed.");
   if (lowRecovery)
     diet.push("Add colourful vegetables and fruit (spinach, broccoli, berries, oranges) to support recovery.");
+  if (feverish)
+    diet.unshift("Check your temperature if you can, rest, and keep water or an oral rehydration drink nearby.");
   diet.push("Have a light dinner 2–3 hours before bed; a warm drink like chamomile tea can help you wind down.");
 
   if (redFlag)
