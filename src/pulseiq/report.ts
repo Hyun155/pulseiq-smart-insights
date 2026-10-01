@@ -80,6 +80,33 @@ class Doc {
   ensure(h: number) { if (this.y + h > 275) { this.pdf.addPage(); this.y = 24; } }
 }
 
+export type SbarSummary = { situation: string; background: string; assessment: string; recommendation: string };
+
+export function buildSbarSummary(state: State): SbarSummary {
+  const level = actionLevel(state);
+  const det = detect(state.measurements);
+  const preset = state.simulationPreset === "viral" ? "Early Viral Onset" : state.simulationPreset === "dehydration" ? "Dehydration & Orthostatic Strain" : state.simulationPreset === "stress" ? "Acute Stress & Sleep Debt" : "Baseline";
+  const situation = `${preset}, Day ${state.simulationDay} of 3. ${levelLabel[level]} with ${det.signalCount} signals changing together.`;
+  const background = `The simulation has ${state.measurements.length} measurements compared with a weighted personal baseline. ${state.contextTags.filter(tag => tag !== "none").length ? `Reported context: ${state.contextTags.filter(tag => tag !== "none").join(", ")}.` : "No lifestyle context has been reported."}`;
+  const assessment = state.sensorContact < 70
+    ? "Low-confidence sensor contact is present. Potential outlier readings are suppressed until the wearable is secure."
+    : state.explainedShift
+      ? "The pattern is currently explained by an acute lifestyle factor; continue observing rather than escalating."
+      : det.persistent || state.simulationDay === 3
+        ? "Multiple measurements remain outside the personalized confidence range. This describes a pattern, not its cause or a diagnosis."
+        : "A developing change is being watched against the personal baseline.";
+  const recommendation = level === "red"
+    ? "Seek prompt medical attention, especially if symptoms are severe or sudden."
+    : level === "orange"
+      ? "Review the action plan, consider professional follow-up, and share this summary."
+      : level === "yellow"
+        ? "Watch and wait for 24–48 hours, complete the check-in, and recheck."
+        : state.sensorContact < 70
+          ? "Improve wearable contact, then recheck before interpreting the pattern."
+          : "Continue monitoring and record any new symptoms or context.";
+  return { situation, background, assessment, recommendation };
+}
+
 export function buildReport(state: State, ai?: { dailySummary?: string; response?: string } | null) {
   const d = new Doc();
   const level = actionLevel(state);

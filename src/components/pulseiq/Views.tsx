@@ -34,6 +34,7 @@ import {
   calculateBaselineStats,
   detect,
   ranges,
+  simulationPresetLabels,
   activeMedications,
   todayISO,
   type Level,
@@ -41,7 +42,7 @@ import {
 } from "@/pulseiq/engine";
 import { buildCompanion, contextOptions, plainTerms } from "@/pulseiq/companion";
 import wearable from "@/assets/pulseiq-wearable.jpg";
-import { buildReport } from "@/pulseiq/report";
+import { buildReport, buildSbarSummary } from "@/pulseiq/report";
 
 const levelCopy: Record<
   Level,
@@ -286,6 +287,11 @@ export function Overview() {
           </span>{" "}
           SIMULATED HEALTH DATA
         </div>
+      </div>
+      <div className="simulation-status-banner">
+        <span className="simulation-status-dot" />
+        <strong>Simulating: {simulationPresetLabels[state.simulationPreset]} · Day {state.simulationDay} of 3</strong>
+        <span>{state.sensorContact < 70 ? "Low Confidence — Alert Suppressed" : level === "green" ? "Monitoring quietly" : level === "yellow" ? "Watch & Wait phase" : "Meaningful Change Detected"}</span>
       </div>
       <div
         className={`hero-panel hero-${level}`}
@@ -544,7 +550,7 @@ export function Insights() {
 export function AIInsightsPage() {
   const { state } = usePulse();
   const data = detect(state.measurements);
-  const activity = planActivity(data.latest, state.symptoms.map((s) => s.name));
+  const activity = planActivity(data.latest, state.symptoms.map((s) => s.name), state.contextTags);
   return (
     <>
       <PageHeading
@@ -565,7 +571,7 @@ export function AIInsightsPage() {
           </div>
           <p className="plan-reason">{activity.why}</p>
           <ul className="plan-checklist">
-            {activity.exercises.slice(0, 3).map((exercise) => <li key={exercise}>{exercise}</li>)}
+            {activity.exercises.map((exercise) => <li key={exercise}>{exercise}</li>)}
           </ul>
           <p className="plan-note"><strong>Keep in mind</strong>{activity.recoveryConsiderations}</p>
         </article>
@@ -575,7 +581,7 @@ export function AIInsightsPage() {
             <span className="daily-plan-icon"><HeartPulse size={18} /></span>
           </div>
           <ul className="plan-checklist nutrition-list">
-            {activity.diet.slice(0, 4).map((recommendation) => <li key={recommendation}>{recommendation}</li>)}
+            {activity.diet.map((recommendation) => <li key={recommendation}>{recommendation}</li>)}
           </ul>
         </article>
       </section>
@@ -621,6 +627,13 @@ export function Companion() {
         title="Health Companion"
         description="Explains today's readings in plain words and checks in when something changes."
       />
+      {state.role === "elderly" && state.simulationDay === 3 && state.simulationPreset !== "baseline" && (
+        <div className="support-standby-banner">
+          <ShieldCheck size={17} />
+          <span>3-Day pattern deviation confirmed. Trusted support standby for Sarah (2h grace period active).</span>
+          <Button asChild size="sm" variant="outline"><Link to="/support">View Support</Link></Button>
+        </div>
+      )}
       <div className="companion-layout">
         <div className="chat-panel">
           <div className="chat-header">
@@ -737,6 +750,7 @@ export function Companion() {
 }
 export function Timeline() {
   const { state } = usePulse();
+  const sbar = buildSbarSummary(state);
   return (
     <>
       <PageHeading
@@ -744,6 +758,21 @@ export function Timeline() {
         title="Health timeline"
         description="Every observation and next step, in one clear sequence."
       />
+      <section className="sbar-preview">
+        <div className="sbar-preview-heading">
+          <div>
+            <Eyebrow>CLINICIAN-READY PREVIEW</Eyebrow>
+            <h2>Doctor's SBAR Summary</h2>
+          </div>
+          <span>Situation · Background · Assessment · Recommendation</span>
+        </div>
+        <div className="sbar-grid">
+          <div><strong>S · Situation</strong><p>{sbar.situation}</p></div>
+          <div><strong>B · Background</strong><p>{sbar.background}</p></div>
+          <div><strong>A · Assessment</strong><p>{sbar.assessment}</p></div>
+          <div><strong>R · Recommendation</strong><p>{sbar.recommendation}</p></div>
+        </div>
+      </section>
       <HealthSummaryPanel />
       <div className="timeline-layout">
         <div className="timeline-list">
@@ -874,13 +903,13 @@ export function Profile() {
   );
 }
 export function Support() {
-  const { state, updateContact, notify, saveContact, confirmFine } = usePulse();
+  const { state, updateContact, notify, dismissNotificationModal, saveContact, confirmFine } = usePulse();
   const [phoneError, setPhoneError] = useState("");
   const level = actionLevel(state);
   const submitContact = (e: FormEvent) => {
     e.preventDefault();
     if (!state.contact.name.trim()) return setPhoneError("Enter the trusted person's name.");
-    if (!/^\+?[0-9\s-]{7,16}$/.test(state.contact.phone.trim())) return setPhoneError("Enter a valid phone number (7–15 digits).");
+    if (!/^\+?[0-9()\s-]{7,24}$/.test(state.contact.phone.trim())) return setPhoneError("Enter a valid phone number (7–15 digits).");
     setPhoneError("");
     saveContact();
   };
@@ -891,8 +920,8 @@ export function Support() {
         <p>Switch to Elderly mode from the sidebar to set up a trusted person.</p>
       </>
     );
-  const canNotify = state.contact.saved && !state.feelingFine && (
-    (level === "orange" && state.scenario === "persistent" && state.contact.persistent) ||
+  const canNotify = state.contact.saved && state.simulationDay === 3 && state.sensorContact >= 70 && !state.feelingFine && (
+    (level === "orange" && state.contact.persistent) ||
     (level === "red" && state.contact.highConcern));
   return (
     <>
@@ -1008,14 +1037,6 @@ export function Support() {
             <ShieldCheck size={15} /> Only a brief check-in request is shared, never full health
             history.
           </p>
-          <Button
-            onClick={notify}
-            disabled={!canNotify || !state.contact.name.trim()}
-            className="w-full"
-          >
-            <Send size={16} />
-            {state.notified ? "Send another simulated check-in" : "Trigger trusted support"}
-          </Button>
           {!canNotify && (
             <small className="support-hint">
               {state.contact.saved ? "Only available when your health condition escalates (persistent recheck or high concern) with permission enabled." : "Submit your trusted person's phone number first."}
@@ -1024,6 +1045,7 @@ export function Support() {
           {canNotify && !state.notified && (
             <div className="support-hint" role="status" style={{ marginTop: ".75rem" }}>
               <p>Your readings stayed outside your usual range. We'll let {state.contact.name} know in 2 hours unless you confirm you're OK.</p>
+              <Button className="w-full" onClick={notify}><Send size={16} /> Send notification now</Button>
               <Button variant="outline" className="w-full" onClick={confirmFine}><CheckCircle2 size={16} /> I'm feeling fine</Button>
             </div>
           )}
@@ -1035,6 +1057,18 @@ export function Support() {
           )}
         </aside>
       </div>
+      {state.notified && state.notificationModalOpen && !state.feelingFine && (
+        <div className="sms-modal-backdrop" role="presentation">
+          <div className="sms-modal" role="dialog" aria-modal="true" aria-labelledby="sms-title">
+            <div className="sms-modal-header"><MessageCircle size={18} /><strong id="sms-title">PulseIQ Family Care</strong><span>Just now</span></div>
+            <div className="sms-bubble">Hi Sarah, Alex&apos;s rest and activity have been a little different from usual for the past 3 days (elevated resting HR, low steps, reported dizziness). A friendly call to see how they are doing would be lovely.</div>
+            <div className="sms-modal-actions">
+              <Button onClick={() => {}} disabled><Send size={16} /> Notification sent</Button>
+              <Button variant="ghost" onClick={dismissNotificationModal}>Exit</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -1146,7 +1180,7 @@ function HealthTrend({ selected }: { selected: TrendKey }) {
   );
 }
 export function HealthData() {
-  const { state } = usePulse();
+  const { state, toggleSensorContact } = usePulse();
   const [selected, setSelected] = useState<TrendKey>("heart");
   const [whyRecovery, setWhyRecovery] = useState(false);
   const { latest, deviation } = detect(state.measurements);
@@ -1172,10 +1206,13 @@ export function HealthData() {
           <span className="chip">HRV {latest.hrv < dataStats.hrv.lower ? "↓" : "—"}</span>
           <span className="chip">Sleep {latest.sleep < dataStats.sleep.lower ? "↓" : "—"}</span>
         </div>
-        <div className="sensor-quality" aria-label="Sensor contact quality: 98 percent, reliable">
+        <div className={`sensor-quality ${state.sensorContact < 70 ? "sensor-quality-low" : ""}`} aria-label={`Sensor contact quality: ${state.sensorContact} percent`}>
           <Wifi size={15} />
-          <span>Sensor contact: <strong>98% (Reliable)</strong></span>
+          <span>Sensor contact: <strong>{state.sensorContact}% ({state.sensorContact < 70 ? "Low confidence — alerts suppressed" : "Reliable"})</strong></span>
         </div>
+        <Button variant="ghost" size="sm" className="sensor-toggle" onClick={toggleSensorContact}>
+          {state.sensorContact < 70 ? "Restore normal contact (98%)" : "Simulate loose wearable (61%)"}
+        </Button>
         <Button variant="outline" onClick={() => setWhyRecovery((v) => !v)}>
           Why is my recovery lower?
         </Button>

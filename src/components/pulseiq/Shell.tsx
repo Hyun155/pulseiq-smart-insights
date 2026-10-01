@@ -3,7 +3,7 @@ import { Activity, ChartNoAxesCombined, HeartPulse, History, House, MessageCircl
 import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { usePulse } from '@/pulseiq/store';
-import { actionLevel, simulationPresetLabels, type SimulationDay, type SimulationPreset } from '@/pulseiq/engine';
+import { actionLevel, simulationPresetLabels, type GuidedStory, type SimulationDay, type SimulationPreset } from '@/pulseiq/engine';
 
 const nav = [
   { to: '/', label: 'Overview', icon: House }, { to: '/health-data', label: 'Health Data', icon: HeartPulse }, { to: '/insights', label: 'Insights', icon: ChartNoAxesCombined },
@@ -11,10 +11,10 @@ const nav = [
   { to: '/support', label: 'Trusted support', icon: ShieldCheck },
 ] as const;
 export function Shell({ children }: { children: ReactNode }) {
-  const { state, run, reset, notify, setRole, selectSimulationPreset, setSimulationDay, toggleSimulationSymptom } = usePulse();
+  const { state, run, reset, notify, setRole, startGuidedStory, selectSimulationPreset, setSimulationDay, toggleSimulationSymptom } = usePulse();
   const level = actionLevel(state);
   const elderly = state.role === 'elderly';
-  const canNotify = elderly && state.simulationPreset === 'dehydration' && state.simulationDay === 3 && !state.feelingFine && state.contact.saved && !!state.contact.name.trim() && ((level === 'orange' && state.scenario === 'persistent' && state.contact.persistent) || (level === 'red' && state.contact.highConcern));
+  const canNotify = elderly && state.simulationPreset !== 'baseline' && state.simulationDay === 3 && state.sensorContact >= 70 && !state.feelingFine && state.contact.saved && !!state.contact.name.trim() && ((level === 'orange' && state.contact.persistent) || (level === 'red' && state.contact.highConcern));
   const [open, setOpen] = useState(false);
   const [simulationOpen, setSimulationOpen] = useState(false);
   const pathname = useRouterState({ select: s => s.location.pathname });
@@ -35,14 +35,21 @@ export function Shell({ children }: { children: ReactNode }) {
         <div className="sim-label"><div className="sim-icon"><Play size={16} fill="currentColor"/></div><div><strong>Simulation Mode {simulationOpen ? '▴' : '▾'}</strong><span>Explore a 3-day health story</span></div></div>
       </button>
       {simulationOpen && <div className="sim-controls">
+        <div className="guided-stories">
+          <span>Guided demo</span>
+          {([['elderly-care', 'Elderly Care & Escalation'], ['viral-onset', 'Early Viral Onset'], ['false-alarm', 'Lifestyle False-Alarm Filter']] as [GuidedStory, string][]).map(([story, label]) => <Button key={story} size="sm" variant="simOutline" onClick={() => startGuidedStory(story)}>{label}</Button>)}
+        </div>
         <label className="sim-field">Scenario
           <select value={state.simulationPreset} onChange={event => selectSimulationPreset(event.target.value as SimulationPreset)}>
             {(Object.keys(simulationPresetLabels) as SimulationPreset[]).map(preset => <option key={preset} value={preset}>{simulationPresetLabels[preset]}</option>)}
           </select>
         </label>
-        <div className="sim-stepper" aria-label="Simulation day">
-          <span>Day</span>
-          {([1, 2, 3] as SimulationDay[]).map(day => <Button key={day} size="sm" variant={state.simulationDay === day ? 'default' : 'simOutline'} onClick={() => setSimulationDay(day)}>{day}</Button>)}
+        <div className="sim-day-control">
+          <div className="sim-stepper" aria-label="Simulation day">
+            <span>Day</span>
+            {([1, 2, 3] as SimulationDay[]).map(day => <Button key={day} size="sm" variant={state.simulationDay === day ? 'default' : 'simOutline'} onClick={() => setSimulationDay(day)}>{day}</Button>)}
+          </div>
+          <small>{state.simulationDay === 1 ? 'Monitoring quietly (1 signal shifted · no alert)' : state.simulationDay === 2 ? 'Watch & Wait (2 signals shifted · proactive check-in asks about lifestyle causes)' : 'Persistent pattern confirmed (3 days × 3 signals · action plan & support unlocked)'}</small>
         </div>
         <div className="sim-symptoms">
           <span>Quick symptoms</span>

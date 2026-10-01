@@ -15,11 +15,14 @@ const has = (symptoms: string[], word: string) =>
   symptoms.some((s) => s.toLowerCase().includes(word));
 
 /** Deterministic activity + diet plan from today's readings. Guidance only, never a diagnosis. */
-export function planActivity(m: Measurement, symptoms: string[]): ActivityPlan {
+export function planActivity(m: Measurement, symptoms: string[], contextTags: string[] = []): ActivityPlan {
   const redFlag = has(symptoms, "chest") || has(symptoms, "breath") || has(symptoms, "faint");
   const dizzy = has(symptoms, "dizz");
   const tired = has(symptoms, "fatigue") || has(symptoms, "tired");
   const feverish = has(symptoms, "fever") || has(symptoms, "warm") || has(symptoms, "ache");
+  const hadAlcohol = contextTags.includes("alcohol");
+  const highStress = contextTags.includes("stress");
+  const lateNight = contextTags.includes("late-night");
   const lowSleep = m.sleep < 6.5;
   const highHr = m.hr > 70;
   const lowRecovery = m.recovery < 65;
@@ -44,6 +47,10 @@ export function planActivity(m: Measurement, symptoms: string[]): ActivityPlan {
     diet.push("Add colourful vegetables and fruit (spinach, broccoli, berries, oranges) to support recovery.");
   if (feverish)
     diet.unshift("Check your temperature if you can, rest, and keep water or an oral rehydration drink nearby.");
+  if (hadAlcohol)
+    diet.unshift("Prioritize electrolytes and B-vitamin foods today to support hydration after alcohol intake.");
+  if (highStress || lateNight)
+    diet.push("Choose magnesium-rich foods such as leafy greens, nuts or yogurt, and try chamomile tea in the evening.");
   diet.push("Have a light dinner 2–3 hours before bed; a warm drink like chamomile tea can help you wind down.");
 
   if (redFlag)
