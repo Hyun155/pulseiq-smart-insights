@@ -1,4 +1,7 @@
 import { planActivity } from "@/pulseiq/activity";
+import { buildInsightsPlan } from "@/pulseiq/insights-plan";
+import insightsHero from "@/assets/insights-hero.jpg";
+import { Droplets } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import {
