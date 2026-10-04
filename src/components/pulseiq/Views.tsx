@@ -34,8 +34,10 @@ import {
   actionLevel,
   analyzeToday,
   baseline,
+  caregiverMessage,
   calculateBaselineStats,
   detect,
+  escalationTier,
   ranges,
   simulationPresetLabels,
   activeMedications,
@@ -969,9 +971,11 @@ export function Profile() {
   );
 }
 export function Support() {
-  const { state, updateContact, notify, dismissNotificationModal, saveContact, confirmFine } = usePulse();
+  const { state, updateContact, notify, dismissNotificationModal, saveContact, confirmFine, startGrace } = usePulse();
   const [phoneError, setPhoneError] = useState("");
+  const [now, setNow] = useState(() => Date.now());
   const level = actionLevel(state);
+  const urgent = escalationTier(state) === 2;
   const submitContact = (e: FormEvent) => {
     e.preventDefault();
     if (!state.contact.name.trim()) return setPhoneError("Enter the trusted person's name.");
@@ -989,6 +993,29 @@ export function Support() {
   const canNotify = state.contact.saved && state.simulationDay === 3 && state.sensorContact >= 70 && !state.feelingFine && (
     (level === "orange" && state.contact.persistent) ||
     (level === "red" && state.contact.highConcern));
+  const gracePeriod = 2 * 60 * 60 * 1000;
+  const remainingGrace = state.graceStartedAt ? Math.max(0, gracePeriod - (now - state.graceStartedAt)) : gracePeriod;
+  const graceProgress = Math.max(0, Math.min(100, (remainingGrace / gracePeriod) * 100));
+  const graceHours = Math.floor(remainingGrace / 3600000).toString().padStart(2, "0");
+  const graceMinutes = Math.floor((remainingGrace % 3600000) / 60000).toString().padStart(2, "0");
+  const graceSeconds = Math.floor((remainingGrace % 60000) / 1000).toString().padStart(2, "0");
+  const caregiverText = caregiverMessage(state);
+  const formatDispatchTime = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const today = new Date();
+    const time = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    return date.toDateString() === today.toDateString() ? `Today, ${time}` : date.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
+  };
+
+  useEffect(() => {
+    if (canNotify && !state.notified && !state.feelingFine && !state.graceStartedAt) startGrace();
+  }, [canNotify, state.notified, state.feelingFine, state.graceStartedAt, startGrace]);
+
+  useEffect(() => {
+    if (!canNotify || state.notified || state.feelingFine || !state.graceStartedAt) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [canNotify, state.notified, state.feelingFine, state.graceStartedAt]);
   return (
     <>
       <PageHeading
@@ -996,6 +1023,15 @@ export function Support() {
         title="Trusted support"
         description="A person you trust, brought in only when you choose."
       />
+      {urgent && canNotify && (
+        <div className="support-emergency-banner" role="alert">
+          <CircleAlert size={21} />
+          <div>
+            <strong>Urgent triage guidance</strong>
+            <p>PulseIQ is a personal monitoring aid, not an emergency dispatch service. Call local emergency services (911/999) for acute chest pain or fainting.</p>
+          </div>
+        </div>
+      )}
       <div className="support-layout">
         <form className="support-form" onSubmit={submitContact}>
           <div className="support-intro">
@@ -1092,12 +1128,8 @@ export function Support() {
             {state.contact.phone ? ` · ${state.contact.phone}` : ""}
           </span>
           <div className="preview-message">
-            <strong>A gentle note from PulseIQ</strong>
-            <p>
-              Hi {state.contact.name.trim() || "there"}, Alex’s rest and activity have been a little different from usual for a few days
-              {state.symptoms.length ? ` and they mentioned ${state.symptoms.map((s) => s.name).join(" and ")}` : ""}
-              . A friendly call to see how they are doing would be lovely.
-            </p>
+            <strong>{urgent ? "An urgent note from PulseIQ" : "A gentle note from PulseIQ"}</strong>
+            <p>{caregiverText}</p>
           </div>
           <p className="privacy-copy">
             <ShieldCheck size={15} /> Only a brief check-in request is shared, never full health
@@ -1109,10 +1141,15 @@ export function Support() {
             </small>
           )}
           {canNotify && !state.notified && (
-            <div className="support-hint" role="status" style={{ marginTop: ".75rem" }}>
-              <p>Your readings stayed outside your usual range. We'll let {state.contact.name} know in 2 hours unless you confirm you're OK.</p>
-              <Button className="w-full" onClick={notify}><Send size={16} /> Send notification now</Button>
-              <Button variant="outline" className="w-full" onClick={confirmFine}><CheckCircle2 size={16} /> I'm feeling fine</Button>
+            <div className="support-alert-panel" role="status">
+              <div className="grace-countdown">
+                <div className="grace-ring" style={{ "--progress": `${graceProgress}%` } as React.CSSProperties}>
+                  <div><strong>{graceHours}:{graceMinutes}:{graceSeconds}</strong><span>remaining</span></div>
+                </div>
+                <div><strong>{urgent ? "High-concern alert" : "Grace period"}</strong><p>{urgent ? "Please check in with Alex now and use emergency services for acute symptoms." : `We'll let ${state.contact.name || "your trusted person"} know unless you confirm you're OK.`}</p></div>
+              </div>
+              <Button className="w-full" onClick={notify}><Send size={16} /> Send Now</Button>
+              <Button variant="outline" className="w-full" onClick={confirmFine}><CheckCircle2 size={16} /> I'm Feeling Fine · Cancel Alert</Button>
             </div>
           )}
           {state.feelingFine && <small className="support-hint">You confirmed you're feeling fine, so no message will be sent. It re-arms after the next recheck.</small>}
@@ -1127,7 +1164,7 @@ export function Support() {
         <div className="sms-modal-backdrop" role="presentation">
           <div className="sms-modal" role="dialog" aria-modal="true" aria-labelledby="sms-title">
             <div className="sms-modal-header"><MessageCircle size={18} /><strong id="sms-title">PulseIQ Family Care</strong><span>Just now</span></div>
-            <div className="sms-bubble">Hi Sarah, Alex&apos;s rest and activity have been a little different from usual for the past 3 days (elevated resting HR, low steps, reported dizziness). A friendly call to see how they are doing would be lovely.</div>
+            <div className="sms-bubble">{caregiverText}</div>
             <div className="sms-modal-actions">
               <Button onClick={() => {}} disabled><Send size={16} /> Notification sent</Button>
               <Button variant="ghost" onClick={dismissNotificationModal}>Exit</Button>
@@ -1135,6 +1172,24 @@ export function Support() {
           </div>
         </div>
       )}
+      <section className="dispatches-section" aria-labelledby="dispatches-title">
+        <div className="section-header">
+          <div><Eyebrow>SIMULATED AUDIT LOG</Eyebrow><h2 id="dispatches-title">Recent Caregiver Dispatches</h2><p>A record of the trusted support alerts prepared in this session.</p></div>
+        </div>
+        {state.dispatches.length ? (
+          <div className="dispatch-table-wrap">
+            <table className="dispatch-table">
+              <thead><tr><th>Timestamp</th><th>Recipient</th><th>Trigger reason</th><th>Status</th></tr></thead>
+              <tbody>{state.dispatches.map((dispatch) => <tr key={dispatch.id}>
+                <td>{formatDispatchTime(dispatch.at)}</td>
+                <td>{dispatch.recipient}</td>
+                <td>{dispatch.reason}</td>
+                <td><span className={`dispatch-status${dispatch.urgent ? " dispatch-status-urgent" : ""}`}>Simulated · Delivered</span></td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+        ) : <p className="dispatch-empty">No caregiver dispatches yet. A sent alert will appear here with its timestamp and trigger reason.</p>}
+      </section>
     </>
   );
 }

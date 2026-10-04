@@ -120,7 +120,7 @@ export function detect(measurements: Measurement[]) {
 export function actionLevel(state: State): Level {
   if (state.sensorContact < 70) return 'green';
   if (state.explainedShift) return 'green';
-  if (state.scenario === 'worsening' || state.symptoms.some(s => ['chest discomfort', 'shortness of breath', 'severe pain'].includes(s.name))) return 'red';
+  if (escalationTier(state) === 2) return 'red';
   if (state.simulationDay === 3 && state.simulationPreset !== 'baseline') return 'orange';
   if (state.simulationDay === 2 && state.simulationPreset !== 'baseline') return 'yellow';
   if (state.scenario === 'persistent' || (detect(state.measurements).persistent && state.symptoms.some(s => s.name === 'dizziness'))) return 'orange';
