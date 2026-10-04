@@ -550,26 +550,54 @@ export function Insights() {
 export function AIInsightsPage() {
   const { state } = usePulse();
   const data = detect(state.measurements);
-  const activity = planActivity(data.latest, state.symptoms.map((s) => s.name), state.contextTags);
+  const symptomNames = state.symptoms.map((s) => s.name);
+  const activity = planActivity(data.latest, symptomNames, state.contextTags);
+  const ip = buildInsightsPlan(data.latest, activity, state.contextTags, symptomNames);
   return (
     <>
       <PageHeading
         eyebrow="TODAY'S ACTION PLAN"
         title="Today's Action Plan"
-        description="Customized movement and nutrition based on today's physiological readings."
+        description="Movement, rest and nutrition calibrated to what your body is showing today — and why."
       />
+      <section className="ip-hero">
+        <img src={insightsHero} alt="Person stretching gently beside water and a healthy breakfast" width={1536} height={640} />
+        <div className="ip-hero-overlay">
+          <div className="ip-ring" style={{ ["--pct" as string]: `${ip.capacity}%` }}>
+            <span><strong>{ip.capacity}%</strong><small>energy budget</small></span>
+          </div>
+          <div className="ip-hero-text">
+            <Eyebrow>TODAY · {ip.capacityLabel.toUpperCase()}</Eyebrow>
+            <h2>{activity.title}</h2>
+            <p>{ip.summary}</p>
+            <div className="ip-pills">
+              <span>Heart strain: <strong>{ip.heartStrain}</strong></span>
+              <span>Nervous system: <strong>{ip.nervousSystem}</strong></span>
+              <span>Sleep restoration: <strong>{ip.sleepRestore}</strong></span>
+            </div>
+          </div>
+        </div>
+      </section>
       <section className="daily-plan-grid">
         <article className="daily-plan-card">
           <div className="daily-plan-card-heading">
-            <h2>Daily Movement &amp; Rest</h2>
+            <h2>Movement &amp; Rest</h2>
             <span className="daily-plan-icon"><Activity size={18} /></span>
           </div>
-          <h3>{activity.title}</h3>
           <div className="plan-badges">
             <span><small>Duration</small><strong>{activity.duration}</strong></span>
             <span><small>Intensity</small><strong>{activity.intensity}</strong></span>
           </div>
-          <p className="plan-reason">{activity.why}</p>
+          <div className="ip-guardrail"><HeartPulse size={16} /> {ip.hrGuardrail}</div>
+          {ip.reasons.length > 0 && (
+            <div className="ip-why">
+              <small>Why this activity?</small>
+              {ip.reasons.slice(0, 3).map((r) => (
+                <p key={r.key}><span className={`ip-tag ip-${r.direction}`}>{r.label} {r.direction === "up" ? "↑" : "↓"} {r.reading}</span> {r.movement}</p>
+              ))}
+            </div>
+          )}
+          {ip.reasons.length === 0 && <p className="plan-reason">{activity.why}</p>}
           <ul className="plan-checklist">
             {activity.exercises.map((exercise) => <li key={exercise}>{exercise}</li>)}
           </ul>
@@ -577,13 +605,48 @@ export function AIInsightsPage() {
         </article>
         <article className="daily-plan-card">
           <div className="daily-plan-card-heading">
-            <h2>Daily Nutrition &amp; Hydration</h2>
-            <span className="daily-plan-icon"><HeartPulse size={18} /></span>
+            <h2>Nutrition &amp; Hydration</h2>
+            <span className="daily-plan-icon"><Droplets size={18} /></span>
           </div>
-          <ul className="plan-checklist nutrition-list">
-            {activity.diet.map((recommendation) => <li key={recommendation}>{recommendation}</li>)}
-          </ul>
+          <div className="ip-guardrail"><Droplets size={16} /> Fluid target today: {ip.fluidTarget}</div>
+          {ip.reasons.length > 0 && (
+            <div className="ip-why">
+              <small>Why this diet?</small>
+              {ip.reasons.slice(0, 3).map((r) => (
+                <p key={r.key}><span className={`ip-tag ip-${r.direction}`}>{r.label} {r.direction === "up" ? "↑" : "↓"}</span> {r.nutrition}</p>
+              ))}
+              {state.contextTags.includes("alcohol") && <p><span className="ip-tag ip-up">Alcohol noted</span> Extra fluids and electrolytes help restore hydration.</p>}
+            </div>
+          )}
+          <div className="ip-nutrition">
+            {ip.nutrition.map((g) => (
+              <div key={g.title} className={`ip-nut ip-nut-${g.tone}`}>
+                <strong>{g.title}</strong>
+                <ul>{g.items.map((i) => <li key={i}>{i}</li>)}</ul>
+              </div>
+            ))}
+          </div>
         </article>
+      </section>
+      <section className="daily-plan-card ip-breakdown">
+        <div className="daily-plan-card-heading">
+          <h2>What changed and how today's plan responds</h2>
+        </div>
+        {ip.reasons.length === 0 ? (
+          <p className="plan-reason">All your signals are within your usual range, so no adjustments were needed today.</p>
+        ) : (
+          <div className="ip-table">
+            <div className="ip-row ip-head"><span>Signal</span><span>What it means</span><span>Movement</span><span>Nutrition</span></div>
+            {ip.reasons.map((r) => (
+              <div className="ip-row" key={r.key}>
+                <span><strong>{r.label}</strong><small>{r.reading} · usual {r.usual}</small></span>
+                <span>{r.meaning}</span>
+                <span>{r.movement}</span>
+                <span>{r.nutrition}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
       <p className="medical-note plan-disclaimer">
         <CircleAlert size={16} /> Guidance is based on simulated biometric patterns and does not substitute for clinical advice.
