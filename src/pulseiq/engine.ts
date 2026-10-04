@@ -12,7 +12,25 @@ export const todayISO = () => new Date().toISOString().slice(0, 10);
 export const activeMedications = (meds: Medication[], day = todayISO()) => meds.filter(m => m.start <= day && day <= m.end);
 export type Message = { role: 'assistant' | 'user'; text: string };
 export type Symptom = { name: string; severity: string };
-export type State = { scenario: Scenario; simulationPreset: SimulationPreset; simulationDay: SimulationDay; explainedShift: boolean; sensorContact: number; notificationModalOpen: boolean; measurements: Measurement[]; symptoms: Symptom[]; messages: Message[]; step: number; events: Event[]; recheck: 'pending' | 'complete' | null; notified: boolean; contact: Contact; medication: string; cycle: string; notes: string; reportGenerated: boolean; role: Role | null; medications: Medication[]; contextTags: string[]; feelingFine: boolean };
+export type Dispatch = { id: number; at: number; recipient: string; reason: string; urgent: boolean; message: string };
+export type State = { scenario: Scenario; simulationPreset: SimulationPreset; simulationDay: SimulationDay; explainedShift: boolean; sensorContact: number; notificationModalOpen: boolean; measurements: Measurement[]; symptoms: Symptom[]; messages: Message[]; step: number; events: Event[]; recheck: 'pending' | 'complete' | null; notified: boolean; contact: Contact; medication: string; cycle: string; notes: string; reportGenerated: boolean; role: Role | null; medications: Medication[]; contextTags: string[]; feelingFine: boolean; dispatches: Dispatch[]; graceStartedAt: number | null };
+
+const acuteSymptoms = ['chest discomfort', 'chest tightness', 'shortness of breath', 'severe pain', 'fainting'];
+/** Level 2 = acute / high concern (SpO2 < 92%, chest or breathing symptoms, red level). Level 1 = subtle persistent deviation. */
+export function escalationTier(state: State): 1 | 2 {
+  const latest = state.measurements.at(-1);
+  const acute = (latest && latest.spo2 < 92) || state.symptoms.some(s => acuteSymptoms.includes(s.name)) || state.scenario === 'worsening';
+  return acute ? 2 : 1;
+}
+export const dispatchReasons: Record<SimulationPreset, string> = {
+  baseline: 'Persistent change after recheck', viral: '3-Day Persistent Viral Onset Pattern', dehydration: '3-Day Persistent Orthostatic Strain', stress: '3-Day Persistent Stress & Sleep Debt',
+};
+export function caregiverMessage(state: State): string {
+  const name = state.contact.name.trim() || 'there';
+  const noted = state.symptoms.length ? ` (noted ${state.symptoms.map(s => s.name).join(', ')})` : '';
+  if (escalationTier(state) === 2) return `Hi ${name}, PulseIQ noticed a high-concern change in Alex's readings${noted}. Please contact Alex as soon as possible. If Alex has chest pain or has fainted, call local emergency services (911/999).`;
+  return `Hi ${name}, Alex's rest and activity have been a little different from usual for the past 3 days${noted}. A friendly call to see how they are doing would be lovely.`;
+}
 
 export const baselineDays: Measurement[] = [
   { day: 'Mon', hr: 64, hrv: 57, sleep: 7.6, sleepScore: 84, deepSleep: 1.4, remSleep: 1.7, lightSleep: 4.1, awake: 0.4, steps: 8100, activeMinutes: 54, exerciseMinutes: 28, spo2: 98, respiratoryRate: 15, recovery: 78 }, { day: 'Tue', hr: 65, hrv: 55, sleep: 7.4, sleepScore: 82, deepSleep: 1.3, remSleep: 1.6, lightSleep: 4.2, awake: 0.3, steps: 7800, activeMinutes: 51, exerciseMinutes: 25, spo2: 97, respiratoryRate: 15, recovery: 76 },
@@ -139,7 +157,7 @@ export const initialState: State = {
   scenario: 'stable', simulationPreset: 'baseline', simulationDay: 1, explainedShift: false, sensorContact: 98, notificationModalOpen: false, measurements: baselineDays, symptoms: [], messages: [], step: 0,
   events: [{ id: 1, label: 'Baseline established', detail: 'Seven days of simulated wearable data define your usual pattern.', kind: 'data' }],
   recheck: null, notified: false, contact: { name: 'Sarah', relationship: 'Daughter', method: 'SMS', phone: '+1 (555) 382-9104', saved: true, persistent: true, highConcern: true },
-  medication: '', cycle: '', notes: '', reportGenerated: false, role: null, medications: [], contextTags: [], feelingFine: false,
+  medication: '', cycle: '', notes: '', reportGenerated: false, role: null, medications: [], contextTags: [], feelingFine: false, dispatches: [], graceStartedAt: null,
 };
 
 export type MetricStatus = 'normal' | 'high' | 'low';
