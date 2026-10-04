@@ -64,9 +64,12 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   const addSymptom = (name: string) => setState(s => s.scenario === 'stable' || s.symptoms.some(x => x.name === name) ? s : ({ ...s, symptoms: [...s.symptoms, { name, severity: name === 'dizziness' ? 'mild' : 'moderate' }], events: [...s.events, event('Symptom reported', `${name} added to the simulated check-in.`, 'conversation')] }));
   const notify = () => setState(s => {
     const level = actionLevel(s);
-    if (s.role !== 'elderly' || s.feelingFine || !s.contact.saved || !s.contact.name.trim() || !((level === 'orange' && s.scenario === 'persistent' && s.contact.persistent) || (level === 'red' && s.contact.highConcern))) return s;
-    return { ...s, notified: true, notificationModalOpen: true, events: [...s.events, event('Trusted support check-in requested', `Simulated ${s.contact.method} notification prepared for ${s.contact.name}.`, 'support')] };
+    if (s.role !== 'elderly' || s.feelingFine || !s.contact.saved || !s.contact.name.trim() || !((level === 'orange' && s.contact.persistent) || (level === 'red' && s.contact.highConcern))) return s;
+    const urgent = escalationTier(s) === 2;
+    const dispatch = { id: nextId++, at: Date.now(), recipient: `${s.contact.name} · ${s.contact.relationship || 'Contact'} · ${s.contact.phone} via ${s.contact.method}`, reason: urgent ? 'High-concern change (acute signal)' : dispatchReasons[s.simulationPreset], urgent, message: caregiverMessage(s) };
+    return { ...s, notified: true, notificationModalOpen: true, graceStartedAt: null, dispatches: [dispatch, ...s.dispatches], events: [...s.events, event(urgent ? 'Urgent trusted support alert' : 'Trusted support check-in requested', `Simulated ${s.contact.method} notification prepared for ${s.contact.name}.`, 'support')] };
   });
+  const startGrace = () => setState(s => s.graceStartedAt ? s : ({ ...s, graceStartedAt: Date.now() }));
   const dismissNotificationModal = () => setState(s => ({ ...s, notificationModalOpen: false }));
   const updateContact = (contact: Contact) => setState(s => ({ ...s, contact: { ...contact, saved: contact.phone === s.contact.phone && contact.name === s.contact.name ? contact.saved : false } }));
   const fillDemoContact = () => setState(s => ({ ...s, contact: { ...s.contact, name: 'Sarah', relationship: 'Daughter', method: 'SMS', phone: '+1 (555) 382-9104', saved: true }, events: [...s.events, event('Demo contact restored', 'Sarah (Daughter) is verified for the simulation.', 'support')] }));
@@ -76,7 +79,7 @@ export function PulseProvider({ children }: { children: ReactNode }) {
   const removeMedication = (id: number) => setState(s => ({ ...s, medications: s.medications.filter(m => m.id !== id) }));
   const markTaken = (id: number) => setState(s => { const d = todayISO(); const med = s.medications.find(m => m.id === id); if (!med || med.takenOn.includes(d)) return s; return { ...s, medications: s.medications.map(m => m.id === id ? { ...m, takenOn: [...m.takenOn, d] } : m), events: [...s.events, event('Medication taken', `${med.name} ${med.dose} marked as taken today.`, 'action')] }; });
   const tagContext = (tag: string) => setState(s => s.contextTags.includes(tag) ? s : ({ ...s, explainedShift: s.simulationPreset === 'stress' && ['stress', 'late-night'].includes(tag), contextTags: [...s.contextTags.filter(t => t !== 'none'), tag].filter(t => tag !== 'none' || t === 'none'), events: [...s.events, event('Context added', tag === 'none' ? 'No lifestyle factor reported — the change stays flagged.' : `Reported: ${tag.replace('-', ' ')}. This is noted alongside the change before any alert.`, 'conversation')] }));
-  const confirmFine = () => setState(s => ({ ...s, feelingFine: true, notified: false, notificationModalOpen: false, events: [...s.events, event("I'm feeling fine", 'You confirmed you are OK, so your trusted person was not messaged.', 'support')] }));
+  const confirmFine = () => setState(s => ({ ...s, feelingFine: true, notified: false, notificationModalOpen: false, graceStartedAt: null, events: [...s.events, event("I'm feeling fine", 'You confirmed you are OK, so your trusted person was not messaged.', 'support')] }));
   const setContext = (key: 'medication' | 'cycle' | 'notes', value: string) => setState(s => ({ ...s, [key]: value }));
   const setReportGenerated = (value: boolean) => setState(s => ({ ...s, reportGenerated: value }));
   const reset = () => { nextId = 2; setState(s => ({ ...initialState, role: s.role })); };
