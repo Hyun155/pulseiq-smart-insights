@@ -1,3 +1,4 @@
+import { diabetesPresetLabels, glucoseForPreset } from './diabetes';
 export type Measurement = { day: string; hr: number; hrv: number; sleep: number; sleepScore: number; deepSleep: number; remSleep: number; lightSleep: number; awake: number; steps: number; activeMinutes: number; exerciseMinutes: number; spo2: number; respiratoryRate: number; recovery: number };
 export type Scenario = 'stable' | 'change' | 'improved' | 'persistent' | 'worsening';
 export type SimulationPreset = 'baseline' | 'viral' | 'dehydration' | 'stress';
@@ -12,24 +13,27 @@ export const todayISO = () => new Date().toISOString().slice(0, 10);
 export const activeMedications = (meds: Medication[], day = todayISO()) => meds.filter(m => m.start <= day && day <= m.end);
 export type Message = { role: 'assistant' | 'user'; text: string };
 export type Symptom = { name: string; severity: string };
+export type MealLog = { id: number; name: string; carbs: number; at: string };
+export type BuddyMessage = { role: 'assistant' | 'user'; text: string; why?: string; action?: string | null; urgent?: boolean };
 export type Dispatch = { id: number; at: number; recipient: string; reason: string; urgent: boolean; message: string };
-export type State = { scenario: Scenario; simulationPreset: SimulationPreset; simulationDay: SimulationDay; explainedShift: boolean; sensorContact: number; notificationModalOpen: boolean; measurements: Measurement[]; symptoms: Symptom[]; messages: Message[]; step: number; events: Event[]; recheck: 'pending' | 'complete' | null; notified: boolean; contact: Contact; medication: string; cycle: string; notes: string; reportGenerated: boolean; role: Role | null; medications: Medication[]; contextTags: string[]; feelingFine: boolean; dispatches: Dispatch[]; graceStartedAt: number | null };
+export type State = { scenario: Scenario; simulationPreset: SimulationPreset; simulationDay: SimulationDay; explainedShift: boolean; sensorContact: number; notificationModalOpen: boolean; measurements: Measurement[]; symptoms: Symptom[]; messages: Message[]; step: number; events: Event[]; recheck: 'pending' | 'complete' | null; notified: boolean; contact: Contact; medication: string; cycle: string; notes: string; reportGenerated: boolean; role: Role | null; medications: Medication[]; contextTags: string[]; feelingFine: boolean; dispatches: Dispatch[]; graceStartedAt: number | null; lang: 'en' | 'bm'; mealLog: MealLog[]; buddyChat: BuddyMessage[]; tasks: string[]; doneTasks: string[] };
 
-const acuteSymptoms = ['chest discomfort', 'chest tightness', 'shortness of breath', 'severe pain', 'fainting'];
+const acuteSymptoms = ['confusion', 'fainting', 'chest discomfort', 'chest tightness', 'shortness of breath', 'severe pain', 'fainting'];
 /** Level 2 = acute / high concern (SpO2 < 92%, chest or breathing symptoms, red level). Level 1 = subtle persistent deviation. */
 export function escalationTier(state: State): 1 | 2 {
   const latest = state.measurements.at(-1);
-  const acute = (latest && latest.spo2 < 92) || state.symptoms.some(s => acuteSymptoms.includes(s.name)) || state.scenario === 'worsening';
+  const fasting = glucoseForPreset(state.simulationPreset, state.simulationDay).at(-1)!.fasting;
+  const acute = fasting < 3.0 || (latest && latest.spo2 < 92) || state.symptoms.some(s => acuteSymptoms.includes(s.name)) || state.scenario === 'worsening';
   return acute ? 2 : 1;
 }
 export const dispatchReasons: Record<SimulationPreset, string> = {
-  baseline: 'Persistent change after recheck', viral: '3-Day Persistent Viral Onset Pattern', dehydration: '3-Day Persistent Orthostatic Strain', stress: '3-Day Persistent Stress & Sleep Debt',
+  baseline: 'Persistent change after recheck', viral: '3-Day rising after-meal glucose', dehydration: '3-Day falling glucose · low sugar risk', stress: '3-Day rising fasting glucose · missed doses',
 };
 export function caregiverMessage(state: State): string {
   const name = state.contact.name.trim() || 'there';
   const noted = state.symptoms.length ? ` (noted ${state.symptoms.map(s => s.name).join(', ')})` : '';
-  if (escalationTier(state) === 2) return `Hi ${name}, PulseIQ noticed a high-concern change in Alex's readings${noted}. Please contact Alex as soon as possible. If Alex has chest pain or has fainted, call local emergency services (911/999).`;
-  return `Hi ${name}, Alex's rest and activity have been a little different from usual for the past 3 days${noted}. A friendly call to see how they are doing would be lovely.`;
+  if (escalationTier(state) === 2) return `Hi ${name}, DiaBuddy noticed a very low or high-concern blood sugar reading for Alex${noted}. Please contact Alex as soon as possible. If Alex is confused, has fainted or has chest pain, call 999.`;
+  return `Hi ${name}, Alex's blood sugar readings have been outside their usual range for the past 3 days${noted}. A friendly call to check they are eating regularly and taking their medicine would be lovely.`;
 }
 
 export const baselineDays: Measurement[] = [
@@ -59,14 +63,12 @@ const scenarioDays: Record<Exclude<SimulationPreset, 'baseline'>, Measurement[]>
     { ...baselineDays[6]!, day: 'Day 3', hr: 74, hrv: 48, deepSleep: 0.8, sleep: 6.1, sleepScore: 64, steps: 8000, recovery: 61 },
   ],
 };
-export const simulationPresetLabels: Record<SimulationPreset, string> = {
-  baseline: 'Baseline (Normal)', viral: 'Viral Onset', dehydration: 'Dehydration & Dizziness', stress: 'Stress & Sleep Debt',
-};
+export const simulationPresetLabels: Record<SimulationPreset, string> = diabetesPresetLabels;
 export function measurementsForPreset(preset: SimulationPreset, day: SimulationDay): Measurement[] {
   return preset === 'baseline' ? baselineDays : [...baselineDays, ...scenarioDays[preset].slice(0, day)];
 }
 export const presetSymptoms: Record<SimulationPreset, Symptom[]> = {
-  baseline: [], viral: [{ name: 'feverish', severity: 'mild' }, { name: 'muscle aches', severity: 'mild' }, { name: 'fatigue', severity: 'mild' }], dehydration: [{ name: 'dizziness', severity: 'moderate' }, { name: 'lethargy', severity: 'mild' }], stress: [{ name: 'brain fog', severity: 'mild' }, { name: 'tension', severity: 'mild' }, { name: 'tired eyes', severity: 'mild' }],
+  baseline: [], viral: [{ name: 'thirsty', severity: 'mild' }, { name: 'fatigue', severity: 'mild' }], dehydration: [{ name: 'shaky', severity: 'moderate' }, { name: 'sweaty', severity: 'mild' }, { name: 'dizziness', severity: 'mild' }], stress: [{ name: 'frequent urination', severity: 'mild' }, { name: 'tired', severity: 'mild' }],
 };
 export const ranges = { hr: [62, 67], hrv: [51, 62], sleep: [7, 8], steps: [7000, 9000], spo2: [95, 100], respiratoryRate: [14, 16], recovery: [70, 85] } as const;
 export type MetricKey = 'hr' | 'hrv' | 'sleep' | 'steps' | 'spo2' | 'respiratoryRate' | 'recovery';
@@ -155,9 +157,10 @@ export function extractSymptoms(text: string): Symptom[] {
 }
 export const initialState: State = {
   scenario: 'stable', simulationPreset: 'baseline', simulationDay: 1, explainedShift: false, sensorContact: 98, notificationModalOpen: false, measurements: baselineDays, symptoms: [], messages: [], step: 0,
-  events: [{ id: 1, label: 'Baseline established', detail: 'Seven days of simulated wearable data define your usual pattern.', kind: 'data' }],
-  recheck: null, notified: false, contact: { name: 'Sarah', relationship: 'Daughter', method: 'SMS', phone: '+1 (555) 382-9104', saved: true, persistent: true, highConcern: true },
-  medication: '', cycle: '', notes: '', reportGenerated: false, role: null, medications: [], contextTags: [], feelingFine: false, dispatches: [], graceStartedAt: null,
+  events: [{ id: 1, label: 'Baseline established', detail: 'Seven days of simulated glucose and wearable data define your usual pattern.', kind: 'data' }],
+  recheck: null, notified: false, contact: { name: 'Sarah', relationship: 'Daughter', method: 'SMS', phone: '+60 12-382 9104', saved: true, persistent: true, highConcern: true },
+  medication: '', cycle: '', notes: '', reportGenerated: false, role: null, medications: [{ id: 900, name: 'Metformin', dose: '500 mg', time: '08:00', start: '2026-01-01', end: '2027-12-31', takenOn: [] }, { id: 901, name: 'Metformin', dose: '500 mg', time: '20:00', start: '2026-01-01', end: '2027-12-31', takenOn: [] }], contextTags: [], feelingFine: false, dispatches: [], graceStartedAt: null,
+  lang: 'en', mealLog: [], buddyChat: [], tasks: [], doneTasks: [],
 };
 
 export type MetricStatus = 'normal' | 'high' | 'low';
